@@ -2,12 +2,32 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <title>Aether Blade: Legacy (High-End)</title>
-    <link rel="stylesheet" href="css/style.css">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aether Blade: Legend of 2026</title>
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <div id="ui-layer">
+    <div id="ui-container">
+        <div class="player-hud">
+            <div class="label">AETHER KNIGHT</div>
+            <div class="bar-container"><div id="hp-bar" class="bar fill-hp"></div></div>
+            <div class="bar-container"><div id="mp-bar" class="bar fill-mp"></div></div>
         </div>
+        
+        <div id="inventory-window" class="hidden">
+            <h3>INVENTORY</h3>
+            <div id="item-grid"></div>
+        </div>
+
+        <div class="skill-slots">
+            <div class="slot">L-Click<br>ATTACK</div>
+            <div class="slot">Q<br>NOVA</div>
+            <div class="slot">E<br>DASH</div>
+            <div class="slot">I<br>BAG</div>
+        </div>
+        <div id="game-log"></div>
+    </div>
+
     <script type="importmap">
         {
             "imports": {
@@ -16,6 +36,6 @@
             }
         }
     </script>
-    <script type="module" src="js/game.js"></script>
+    <script type="module" src="game.js"></script>
 </body>
 </html>
