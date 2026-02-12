@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aether Blade: Legacy of the Shadow Kingdom (Demo)</title>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #1a1a2e; }
+        canvas { display: block; }
+        #loading-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: #000;
+            color: #fff;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-family: sans-serif;
+            font-size: 2em;
+            z-index: 100;
+            opacity: 1;
+            transition: opacity 1s ease-out;
+        }
+        #loading-screen.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+    <div id="loading-screen">Loading Aether Blade Demo...</div>
+    <script type="module">
+        import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.module.js';
+        import { OrbitControls } from 'https://cdn.jsdelivr.net/npm/three@0.158.0/examples/jsm/controls/OrbitControls.js';
+
+        // --- Basic Scene Setup ---
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setClearColor(0x1a1a2e); // Darker background to match theme
+        document.body.appendChild(renderer.domElement);
+
+        // --- OrbitControls for Camera Movement ---
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true; // 부드러운 카메라 움직임
+        controls.dampingFactor = 0.05;
+        controls.minDistance = 5;
+        controls.maxDistance = 50;
+        camera.position.set(0, 10, 20); // 초기 카메라 위치
+        controls.update();
+
+        // --- Lighting ---
+        const ambientLight = new THREE.AmbientLight(0x404040, 2); // 부드러운 주변광
+        scene.add(ambientLight);
+
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+        directionalLight.position.set(5, 10, 5);
+        directionalLight.castShadow = true;
+        scene.add(directionalLight);
+
+        // --- Game Elements ---
+
+        // 1. Ground (Ancient Ruins Floor)
+        const groundGeometry = new THREE.PlaneGeometry(100, 100);
+        const groundMaterial = new THREE.MeshStandardMaterial({ color: 0x2d2d3d, roughness: 0.8, metalness: 0.1 });
+        const ground = new THREE.Mesh(groundGeometry, groundMaterial);
+        ground.rotation.x = -Math.PI / 2;
+        ground.receiveShadow = true;
+        scene.add(ground);
+
+        // 2. Player (Simple representation)
+        const playerGeometry = new THREE.CapsuleGeometry(1, 3, 4, 8); // 반지름 1, 높이 3
+        const playerMaterial = new THREE.MeshStandardMaterial({ color: 0x0077be, emissive: 0x003366, emissiveIntensity: 0.5 });
+        const player = new THREE.Mesh(playerGeometry, playerMaterial);
+        player.position.y = 2; // 지면 위로 올리기
+        player.castShadow = true;
+        scene.add(player);
+
+        // 3. Aether Blade (Glowing Sword)
+        const bladeGeometry = new THREE.BoxGeometry(0.2, 5, 0.2); // 검신
+        const hiltGeometry = new THREE.CylinderGeometry(0.3, 0.3, 1, 8); // 손잡이
+        const guardGeometry = new THREE.BoxGeometry(1.5, 0.2, 0.2); // 가드
+
+        const bladeMaterial = new THREE.MeshBasicMaterial({
+            color: 0x8800ff, // 보라색 빛
+            side: THREE.DoubleSide,
+            transparent: true,
+            opacity: 0.8,
+            emissive: 0x8800ff,
+            emissiveIntensity: 3 // 강한 발광 효과
+        });
+        const hiltMaterial = new THREE.MeshStandardMaterial({ color: 0x663300, roughness: 0.7, metalness: 0.5 });
+        const guardMaterial = new THREE.MeshStandardMaterial({ color: 0xaaaaaa, roughness: 0.5, metalness: 0.8 });
+
+        const blade = new THREE.Mesh(bladeGeometry, bladeMaterial);
+        const hilt = new THREE.Mesh(hiltGeometry, hiltMaterial);
+        const guard = new THREE.Mesh(guardGeometry, guardMaterial);
+
+        blade.position.y = 2.5; // 검신은 위로
+        hilt.position.y = -0.5; // 손잡이는 아래로
+        guard.position.y = 1.5; // 가드는 중간에
+
+        const aetherBlade = new THREE.Group();
+        aetherBlade.add(blade, hilt, guard);
+        aetherBlade.position.set(1.5, 3.5, 0); // 플레이어 옆에 배치
+        aetherBlade.rotation.z = Math.PI / 4; // 대각선으로 기울이기
+        scene.add(aetherBlade);
+
+        // Add a point light to simulate blade glow
+        const bladeLight = new THREE.PointLight(0x8800ff, 5, 10);
+        bladeLight.position.copy(aetherBlade.position);
+        scene.add(bladeLight);
+
+        // 4. Simple Enemy (Dark Shard)
+        const enemyGeometry = new THREE.IcosahedronGeometry(2, 0); // 20면체
+        const enemyMaterial = new THREE.MeshStandardMaterial({ color: 0x440066, emissive: 0x220033, emissiveIntensity: 0.7, flatShading: true });
+        const enemy = new THREE.Mesh(enemyGeometry, enemyMaterial);
+        enemy.position.set(10, 3, -5); // 플레이어로부터 떨어진 위치
+        enemy.castShadow = true;
+        scene.add(enemy);
+
+        // 5. Ancient Ruin Pillars (Simple Boxes)
+        function createPillar(x, z) {
+            const pillarHeight = Math.random() * 8 + 5;
+            const pillarGeometry = new THREE.BoxGeometry(2, pillarHeight, 2);
+            const pillarMaterial = new THREE.MeshStandardMaterial({ color: 0x3d3d4d, roughness: 0.9, metalness: 0.1 });
+            const pillar = new THREE.Mesh(pillarGeometry, pillarMaterial);
+            pillar.position.set(x, pillarHeight / 2, z);
+            pillar.castShadow = true;
+            pillar.receiveShadow = true;
+            scene.add(pillar);
+        }
+
+        createPillar(-15, -10);
+        createPillar(10, -12);
+        createPillar(-12, 15);
+        createPillar(15, 10);
+        createPillar(0, -20);
+        createPillar(-20, 0);
+
+        // --- Render Loop ---
+        function animate() {
+            requestAnimationFrame(animate);
+
+            // Aether Blade subtle animation (hover)
+            aetherBlade.rotation.y += 0.01;
+            aetherBlade.position.y = 3.5 + Math.sin(Date.now() * 0.002) * 0.2;
+            bladeLight.position.copy(aetherBlade.position); // 빛도 검을 따라 움직임
+
+            // Enemy subtle animation (pulsating glow)
+            enemy.material.emissiveIntensity = 0.7 + Math.sin(Date.now() * 0.003) * 0.3;
+
+
+            controls.update(); // OrbitControls 업데이트
+            renderer.render(scene, camera);
+        }
+
+        animate();
+
+        // --- Event Handlers ---
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // Hide loading screen after everything is loaded/initialized
+        window.addEventListener('load', () => {
+            const loadingScreen = document.getElementById('loading-screen');
+            loadingScreen.classList.add('hidden');
+            loadingScreen.addEventListener('transitionend', () => {
+                loadingScreen.remove();
+            });
+        });
+
+        // Basic Player Movement (for demonstration - not full action game logic)
+        const moveSpeed = 0.1;
+        document.addEventListener('keydown', (event) => {
+            switch (event.key) {
+                case 'w': player.position.z -= moveSpeed; break;
+                case 's': player.position.z += moveSpeed; break;
+                case 'a': player.position.x -= moveSpeed; break;
+                case 'd': player.position.x += moveSpeed; break;
+            }
+            // 검과 빛도 플레이어를 따라 움직이도록 임시 설정
+            aetherBlade.position.x = player.position.x + 1.5;
+            aetherBlade.position.z = player.position.z;
+        });
+    </script>
+</body>
+</html>
