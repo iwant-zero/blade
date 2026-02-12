@@ -1,1 +1,22 @@
+body { margin: 0; overflow: hidden; background: #000; color: #fff; font-family: 'Courier New', Courier, monospace; }
+#ui-container { position: absolute; inset: 0; pointer-events: none; z-index: 10; }
 
+/* HUD 스탯 */
+.player-hud { position: absolute; top: 30px; left: 30px; pointer-events: auto; }
+.label { font-weight: bold; font-size: 18px; color: #00ffff; text-shadow: 0 0 10px #00ffff; margin-bottom: 10px; }
+.bar-container { width: 300px; height: 15px; background: rgba(0,0,0,0.7); border: 1px solid #444; margin-bottom: 8px; border-radius: 3px; overflow: hidden; }
+.bar { height: 100%; transition: width 0.4s cubic-bezier(0.18, 0.89, 0.32, 1.28); }
+.fill-hp { background: linear-gradient(90deg, #ff0055, #ff77aa); box-shadow: 0 0 15px #ff0055; }
+.fill-mp { background: linear-gradient(90deg, #0055ff, #00ffff); box-shadow: 0 0 15px #0055ff; }
+
+/* 인벤토리 */
+#inventory-window { position: absolute; right: 50px; top: 100px; width: 240px; background: rgba(10, 20, 30, 0.9); border: 2px solid #00ffff; padding: 15px; pointer-events: auto; }
+.hidden { display: none; }
+#item-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 10px; }
+.item-slot { width: 50px; height: 50px; background: rgba(255,255,255,0.05); border: 1px solid #333; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+
+/* 스킬 슬롯 */
+.skill-slots { position: absolute; bottom: 40px; left: 50%; transform: translateX(-50%); display: flex; gap: 15px; pointer-events: auto; }
+.slot { width: 60px; height: 60px; border: 2px solid #00ffff; background: rgba(0,255,255,0.1); display: flex; align-items: center; justify-content: center; text-align: center; font-size: 10px; color: #00ffff; border-radius: 8px; }
+
+#game-log { position: absolute; bottom: 120px; left: 30px; color: #00ffff; text-shadow: 1px 1px #000; font-size: 14px; }
