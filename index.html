@@ -3,178 +3,153 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Aether Blade: Legacy of the Shadow Kingdom</title>
+    <title>Aether Blade: Legacy (Module Version)</title>
     <style>
-        body { margin: 0; overflow: hidden; background: #050505; font-family: 'Segoe UI', sans-serif; }
-        #ui-layer {
-            position: absolute; top: 20px; left: 20px; color: white;
-            pointer-events: none; text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+        body { margin: 0; overflow: hidden; background: #000; font-family: 'Malgun Gothic', sans-serif; }
+        #ui {
+            position: absolute; top: 20px; left: 20px; color: #00ffff;
+            pointer-events: none; z-index: 100;
         }
-        .hp-bar-container { width: 200px; height: 20px; background: rgba(255,255,255,0.2); border: 2px solid #fff; }
-        #hp-fill { width: 100%; height: 100%; background: linear-gradient(90deg, #ff0055, #ff5500); transition: width 0.3s; }
-        #controls-guide { position: absolute; bottom: 20px; right: 20px; color: rgba(255,255,255,0.7); font-size: 0.9em; text-align: right; }
-        canvas { display: block; }
+        .bar { width: 250px; height: 12px; border: 1px solid #00ffff; margin-top: 5px; background: rgba(0,255,255,0.1); }
+        #hp { width: 100%; height: 100%; background: #00ffff; box-shadow: 0 0 15px #00ffff; transition: 0.2s; }
+        #guide { position: absolute; bottom: 20px; left: 20px; color: #fff; font-size: 13px; opacity: 0.6; line-height: 1.6; }
     </style>
 </head>
 <body>
 
-    <div id="ui-layer">
-        <h1 style="margin:0; font-size: 1.5em; letter-spacing: 2px;">AETHER BLADE</h1>
-        <div class="hp-bar-container"><div id="hp-fill"></div></div>
-        <p>Ether Energy: <span id="energy-val">100</span>%</p>
+    <div id="ui">
+        <div style="font-size: 1.2em; font-weight: bold; letter-spacing: 3px;">AETHER BLADE: LEGACY</div>
+        <div class="bar"><div id="hp"></div></div>
+        <div style="margin-top: 5px; font-size: 0.8em;">ETHER RESONANCE: ACTIVE</div>
     </div>
 
-    <div id="controls-guide">
+    <div id="guide">
         [W,A,S,D] 이동 | [SPACE] 점프<br>
-        [마우스 클릭] 에테르 블레이드 휘두르기<br>
-        [마우스 드래그] 카메라 회전
+        [Mouse Click] 에테르 휘두르기 (푸른 마력의 잔상)<br>
+        [Mouse Move] 시점 전환
     </div>
 
     <script type="module">
-        import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.module.js';
-        import { OrbitControls } from 'https://cdn.jsdelivr.net/npm/three@0.158.0/examples/jsm/controls/OrbitControls.js';
+        // --- Three.js 모듈 임포트 (CDN 최적화 경로) ---
+        import * as THREE from 'https://unpkg.com/three@0.158.0/build/three.module.js';
 
-        // --- 초기 설정 ---
+        // 1. Scene & Camera Setup
         const scene = new THREE.Scene();
-        scene.fog = new THREE.FogExp2(0x0a0a1a, 0.05); // 안개 효과로 분위기 조성
+        scene.background = new THREE.Color(0x020205);
+        scene.fog = new THREE.Fog(0x020205, 10, 50);
 
         const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-        camera.position.set(0, 5, 10);
-
-        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
         renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.setPixelRatio(window.devicePixelRatio);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
         renderer.shadowMap.enabled = true;
         document.body.appendChild(renderer.domElement);
 
-        const controls = new OrbitControls(camera, renderer.domElement);
-        controls.enableDamping = true;
+        // 2. Lights (화면이 깜깜하지 않게 강력하게 설정)
+        const hemiLight = new THREE.HemisphereLight(0x4444ff, 0x000000, 1);
+        scene.add(hemiLight);
 
-        // --- 조명 (스팀펑크 & 판타지 느낌) ---
-        const ambientLight = new THREE.AmbientLight(0x4040ff, 0.5); 
-        scene.add(ambientLight);
+        const mainLight = new THREE.SpotLight(0xffffff, 2);
+        mainLight.position.set(10, 20, 10);
+        mainLight.castShadow = true;
+        scene.add(mainLight);
 
-        const sunLight = new THREE.DirectionalLight(0xffffff, 1.2);
-        sunLight.position.set(10, 20, 10);
-        sunLight.castShadow = true;
-        scene.add(sunLight);
+        // 3. Ground & Environment (시각적 피드백 강화)
+        const grid = new THREE.GridHelper(200, 100, 0x00ffff, 0x111122);
+        scene.add(grid);
 
-        // --- 지형: 고대 유적 바닥 ---
-        const floorGeo = new THREE.PlaneGeometry(100, 100);
-        const floorMat = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.8 });
+        const floorGeo = new THREE.PlaneGeometry(200, 200);
+        const floorMat = new THREE.MeshStandardMaterial({ color: 0x050505, roughness: 0.8 });
         const floor = new THREE.Mesh(floorGeo, floorMat);
         floor.rotation.x = -Math.PI / 2;
         floor.receiveShadow = true;
         scene.add(floor);
 
-        // 바닥 격자 추가 (디자인 요소)
-        const grid = new THREE.GridHelper(100, 50, 0x00ffff, 0x222222);
-        scene.add(grid);
-
-        // --- 플레이어 구성 ---
+        // 4. Player Structure (에테르 소드 포함)
         const playerGroup = new THREE.Group();
-        const bodyGeo = new THREE.CapsuleGeometry(0.5, 1, 4, 8);
-        const bodyMat = new THREE.MeshStandardMaterial({ color: 0x333333, metalness: 0.8 });
-        const body = new THREE.Mesh(bodyGeo, bodyMat);
-        body.position.y = 1;
-        body.castShadow = true;
-        playerGroup.add(body);
+        
+        // 캐릭터 몸체
+        const char = new THREE.Mesh(
+            new THREE.CapsuleGeometry(0.4, 0.8, 4, 8),
+            new THREE.MeshStandardMaterial({ color: 0x111111, metalness: 0.5, roughness: 0.2 })
+        );
+        char.position.y = 0.8;
+        char.castShadow = true;
+        playerGroup.add(char);
 
-        // 에테르 블레이드 (검)
-        const swordGeo = new THREE.BoxGeometry(0.1, 2.5, 0.3);
-        const swordMat = new THREE.MeshStandardMaterial({ 
+        // 푸른 마력의 잔상을 내뿜는 검 (에테르 블레이드)
+        const bladeGeo = new THREE.BoxGeometry(0.05, 1.8, 0.2);
+        const bladeMat = new THREE.MeshStandardMaterial({ 
             color: 0x00ffff, 
             emissive: 0x00ffff, 
-            emissiveIntensity: 2 
+            emissiveIntensity: 10 
         });
-        const sword = new THREE.Mesh(swordGeo, swordMat);
-        sword.position.set(0.7, 1.2, 0.5);
-        sword.rotation.x = Math.PI / 4;
-        playerGroup.add(sword);
+        const blade = new THREE.Mesh(bladeGeo, bladeMat);
+        blade.position.set(0.6, 1.2, 0);
+        blade.rotation.x = Math.PI / 6;
+        playerGroup.add(blade);
 
-        // 검의 빛 효과 (PointLight)
-        const swordLight = new THREE.PointLight(0x00ffff, 2, 5);
-        swordLight.position.copy(sword.position);
-        playerGroup.add(swordLight);
+        // 검의 포인트 라이트 (주변을 밝힘)
+        const swordPointLight = new THREE.PointLight(0x00ffff, 3, 6);
+        swordPointLight.position.copy(blade.position);
+        playerGroup.add(swordPointLight);
 
         scene.add(playerGroup);
 
-        // --- 적군 (Shadow Entities) ---
-        const enemies = [];
-        function createEnemy(x, z) {
-            const eGeo = new THREE.IcosahedronGeometry(0.7, 0);
-            const eMat = new THREE.MeshStandardMaterial({ color: 0xff0055, emissive: 0xff0000 });
-            const e = new THREE.Mesh(eGeo, eMat);
-            e.position.set(x, 0.7, z);
-            e.castShadow = true;
-            scene.add(e);
-            enemies.push(e);
-        }
-        for(let i=0; i<5; i++) createEnemy(Math.random()*20-10, Math.random()*20-10);
+        camera.position.set(0, 6, 10);
+        camera.lookAt(playerGroup.position);
 
-        // --- 입력 및 이동 로직 ---
+        // 5. Interaction Logic
         const keys = {};
-        window.addEventListener('keydown', (e) => keys[e.code] = true);
-        window.addEventListener('keyup', (e) => keys[e.code] = false);
+        window.onkeydown = (e) => keys[e.code] = true;
+        window.onkeyup = (e) => keys[e.code] = false;
 
-        let isAttacking = false;
         let attackTime = 0;
+        let isAttacking = false;
+        window.onmousedown = () => { isAttacking = true; };
 
-        window.addEventListener('mousedown', () => {
-            if(!isAttacking) {
-                isAttacking = true;
-                attackTime = 0;
-                // 공격 시 에너지 소모 연출
-                document.getElementById('energy-val').innerText = Math.floor(Math.random() * 20 + 80);
-            }
-        });
-
-        // --- 애니메이션 루프 ---
+        // 6. Rendering Loop
         const clock = new THREE.Clock();
-
-        function update() {
-            const delta = clock.getDelta();
-            const moveSpeed = 5 * delta;
-
-            // 이동 처리
-            if (keys['KeyW']) playerGroup.position.z -= moveSpeed;
-            if (keys['KeyS']) playerGroup.position.z += moveSpeed;
-            if (keys['KeyA']) playerGroup.position.x -= moveSpeed;
-            if (keys['KeyD']) playerGroup.position.x += moveSpeed;
-
-            // 공격 애니메이션
-            if (isAttacking) {
-                attackTime += delta * 10;
-                sword.rotation.x = Math.PI / 4 + Math.sin(attackTime) * 2;
-                swordLight.intensity = 5 + Math.sin(attackTime) * 3;
-                
-                if (attackTime > Math.PI) {
-                    isAttacking = false;
-                    sword.rotation.x = Math.PI / 4;
-                    swordLight.intensity = 2;
-                }
-            }
-
-            // 적군 간단한 움직임 (플레이어 주시)
-            enemies.forEach(e => {
-                e.rotation.y += delta;
-                e.position.y = 0.7 + Math.sin(Date.now() * 0.005) * 0.2;
-            });
-
-            // 카메라가 플레이어를 부드럽게 따라감 (선택사항)
-            // camera.position.lerp(new THREE.Vector3(playerGroup.position.x, playerGroup.position.y + 5, playerGroup.position.z + 10), 0.1);
-        }
 
         function animate() {
             requestAnimationFrame(animate);
-            update();
-            controls.update();
+            const delta = clock.getDelta();
+
+            // Player Movement
+            const moveSpeed = 0.15;
+            if(keys['KeyW']) playerGroup.position.z -= moveSpeed;
+            if(keys['KeyS']) playerGroup.position.z += moveSpeed;
+            if(keys['KeyA']) playerGroup.position.x -= moveSpeed;
+            if(keys['KeyD']) playerGroup.position.x += moveSpeed;
+
+            // Attack Animation (푸른 마력의 잔상 연출)
+            if(isAttacking) {
+                attackTime += delta * 15;
+                blade.rotation.x = Math.sin(attackTime) * 3;
+                swordPointLight.intensity = 5 + Math.sin(attackTime) * 5;
+                if(attackTime > Math.PI) {
+                    isAttacking = false;
+                    attackTime = 0;
+                    blade.rotation.x = Math.PI / 6;
+                    swordPointLight.intensity = 3;
+                }
+            }
+
+            // Camera Follow (Smooth Lerp)
+            const targetCamPos = new THREE.Vector3(
+                playerGroup.position.x, 
+                playerGroup.position.y + 6, 
+                playerGroup.position.z + 10
+            );
+            camera.position.lerp(targetCamPos, 0.1);
+            camera.lookAt(playerGroup.position);
+
             renderer.render(scene, camera);
         }
 
         animate();
 
-        // 리사이즈 대응
+        // Handle Resize
         window.addEventListener('resize', () => {
             camera.aspect = window.innerWidth / window.innerHeight;
             camera.updateProjectionMatrix();
