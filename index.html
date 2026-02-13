@@ -7,15 +7,15 @@
         body { margin: 0; background: #000; overflow: hidden; font-family: sans-serif; }
         canvas { display: block; }
         #ui { position: absolute; top: 20px; left: 20px; color: #0ff; pointer-events: none; }
-        .hp-bg { width: 200px; height: 15px; background: #333; border: 1px solid #0ff; }
-        #hp-fill { width: 100%; height: 100%; background: #f05; transition: 0.1s; }
+        .hp-bg { width: 200px; height: 15px; background: rgba(0,255,255,0.2); border: 1px solid #0ff; }
+        #hp-fill { width: 100%; height: 100%; background: linear-gradient(90deg, #f05, #ff77aa); transition: 0.1s; }
     </style>
 </head>
 <body>
     <div id="ui">
-        <div style="margin-bottom:5px;">AETHER KNIGHT</div>
+        <div style="font-weight:bold; letter-spacing:1px;">BLADE: AETHER KNIGHT</div>
         <div class="hp-bg"><div id="hp-fill"></div></div>
-        <div style="margin-top:10px; font-size:12px;">AD: 이동 | SPACE: 점프 | K: 공격 (연타 가능)</div>
+        <div style="margin-top:10px; font-size:12px; color:#fff;">AD: 이동 | SPACE: 점프 | K: 공격</div>
     </div>
     <canvas id="gameCanvas"></canvas>
 
@@ -27,136 +27,125 @@ const hpFill = document.getElementById('hp-fill');
 canvas.width = window.innerWidth;
 canvas.height = window.innerHeight;
 
-// --- 이미지 로딩 ---
-const images = {
-    player: new Image(),
-    enemy: new Image()
-};
-images.player.src = 'assets/player.png';
-images.enemy.src = 'assets/enemy.png';
+// --- 이미지 설정 ---
+const img_player = new Image(); img_player.src = 'assets/player.png';
+const img_enemy = new Image(); img_enemy.src = 'assets/enemy.png';
+const img_bg = new Image(); img_bg.src = 'assets/background.png';
 
-// --- 게임 설정 ---
-const floorY = canvas.height - 100; // 바닥 높이 고정
+// --- 게임 변수 ---
+const floorY = canvas.height - 100;
 const player = {
-    x: 100, y: floorY - 100,
-    w: 80, h: 100,
-    vx: 0, vy: 0,
-    grounded: false,
-    direction: 1, // 1: 우, -1: 좌
-    isAttacking: false,
-    hp: 100
+    x: 100, y: floorY - 100, w: 80, h: 100,
+    vx: 0, vy: 0, grounded: false, direction: 1,
+    isAttacking: false, hp: 100
 };
 
 let enemies = [];
 let afterimages = [];
 
-// --- 입력 관리 ---
+// --- 키 입력 ---
 const keys = {};
 window.onkeydown = (e) => {
     keys[e.code] = true;
-    if(e.code === 'KeyK') attack(); // K 누를 때마다 공격 함수 실행
+    if(e.code === 'KeyK') attack();
 };
 window.onkeyup = (e) => keys[e.code] = false;
 
-// --- 핵심: 공격 함수 ---
 function attack() {
     player.isAttacking = true;
-    
-    // 푸른 마력의 잔상 생성
-    afterimages.push({
-        x: player.x, y: player.y,
-        opacity: 0.8, life: 15, dir: player.direction
-    });
+    // 푸른 마력의 잔상 (공격 시 화려하게 생성)
+    for(let i=0; i<3; i++) {
+        afterimages.push({
+            x: player.x + (i*10*player.direction), y: player.y,
+            opacity: 0.8, life: 20, dir: player.direction
+        });
+    }
 
-    // 공격 판정 (캐릭터 앞쪽 150px 범위)
     const attackRange = 150;
     enemies.forEach((en, i) => {
-        const isRightAttack = player.direction === 1 && en.x > player.x && en.x < player.x + player.w + attackRange;
-        const isLeftAttack = player.direction === -1 && en.x < player.x && en.x > player.x - attackRange;
-        
-        // 높이(Y)도 비슷해야 맞음
-        if ((isRightAttack || isLeftAttack) && Math.abs(player.y - en.y) < 100) {
-            en.hp -= 50;
+        const dist = player.direction === 1 ? (en.x - player.x) : (player.x - en.x);
+        if (dist > 0 && dist < attackRange + 50 && Math.abs(player.y - en.y) < 100) {
+            en.hp -= 40;
             if(en.hp <= 0) enemies.splice(i, 1);
         }
     });
-
-    // 0.2초 후 공격 모션 해제
-    setTimeout(() => { player.isAttacking = false; }, 200);
+    setTimeout(() => { player.isAttacking = false; }, 250);
 }
 
 function spawnEnemy() {
     if(enemies.length < 5) {
         enemies.push({
-            x: Math.random() * (canvas.width - 50),
-            y: floorY - 80, // 몬스터가 땅 위에 생성되도록 고정
-            w: 60, h: 80,
-            hp: 100,
-            speed: 2 + Math.random() * 2
+            x: Math.random() > 0.5 ? -100 : canvas.width + 100,
+            y: floorY - 90, w: 70, h: 90, hp: 100, speed: 2 + Math.random() * 2
         });
     }
 }
 setInterval(spawnEnemy, 2000);
 
-// --- 엔진 루프 ---
+// --- 그리기 함수 (배경 추가) ---
+function drawBackground() {
+    // 1. 이미지가 있으면 이미지 그리기
+    if (img_bg.complete && img_bg.width > 0) {
+        ctx.drawImage(img_bg, 0, 0, canvas.width, canvas.height);
+    } else {
+        // 2. 이미지가 없으면 '사이버 시티' 느낌의 그라데이션 배경 그리기
+        let grad = ctx.createLinearGradient(0, 0, 0, canvas.height);
+        grad.addColorStop(0, '#020205');
+        grad.addColorStop(1, '#050515');
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        // 배경 그리드 (원근감 효과)
+        ctx.strokeStyle = 'rgba(0, 255, 255, 0.1)';
+        for(let i=0; i<canvas.width; i+=100) {
+            ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, canvas.height); ctx.stroke();
+        }
+    }
+}
+
 function update() {
-    // 이동 & 화면 이탈 방지
     if(keys['KeyA']) { player.vx = -7; player.direction = -1; }
     else if(keys['KeyD']) { player.vx = 7; player.direction = 1; }
     else player.vx *= 0.8;
 
-    if(keys['Space'] && player.grounded) {
-        player.vy = -18;
-        player.grounded = false;
-    }
+    if(keys['Space'] && player.grounded) { player.vy = -18; player.grounded = false; }
 
-    player.vy += 0.8; // 중력
+    player.vy += 0.8;
     player.x += player.vx;
     player.y += player.vy;
 
-    // 왼쪽/오른쪽 벽 뚫기 방지 (버그 해결!)
+    // 화면 가두기
     if(player.x < 0) player.x = 0;
     if(player.x > canvas.width - player.w) player.x = canvas.width - player.w;
 
-    // 바닥 충돌
     if(player.y > floorY - player.h) {
-        player.y = floorY - player.h;
-        player.vy = 0;
-        player.grounded = true;
+        player.y = floorY - player.h; player.vy = 0; player.grounded = true;
     }
 
-    // 몬스터 AI (플레이어 추적)
     enemies.forEach(en => {
-        if(en.x < player.x) en.x += en.speed;
-        else en.x -= en.speed;
-        
-        // 몬스터 데미지
-        if(Math.abs(player.x - en.x) < 30 && Math.abs(player.y - en.y) < 30) {
-            player.hp -= 0.1;
-            hpFill.style.width = player.hp + "%";
+        if(en.x < player.x) en.x += en.speed; else en.x -= en.speed;
+        if(Math.abs(player.x - en.x) < 40 && Math.abs(player.y - en.y) < 50) {
+            player.hp -= 0.15;
+            hpFill.style.width = Math.max(0, player.hp) + "%";
         }
     });
 
-    // 잔상 흐려지기
     afterimages.forEach((img, i) => {
-        img.opacity -= 0.05;
-        img.life--;
+        img.opacity -= 0.04; img.life--;
         if(img.life <= 0) afterimages.splice(i, 1);
     });
 }
 
 function draw() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
+    drawBackground(); // 배경 그리기 호출
 
     // 바닥
-    ctx.strokeStyle = '#0ff';
-    ctx.lineWidth = 5;
-    ctx.beginPath();
-    ctx.moveTo(0, floorY);
-    ctx.lineTo(canvas.width, floorY);
-    ctx.stroke();
+    ctx.strokeStyle = '#0ff'; ctx.lineWidth = 4;
+    ctx.beginPath(); ctx.moveTo(0, floorY); ctx.lineTo(canvas.width, floorY); ctx.stroke();
 
-    // 잔상 그리기
+    // 잔상
     afterimages.forEach(img => {
         ctx.globalAlpha = img.opacity;
         ctx.fillStyle = '#0ff';
@@ -164,38 +153,35 @@ function draw() {
     });
     ctx.globalAlpha = 1;
 
-    // 몬스터 그리기
+    // 몬스터
     enemies.forEach(en => {
-        if(images.enemy.complete) ctx.drawImage(images.enemy, en.x, en.y, en.w, en.h);
-        else { ctx.fillStyle = 'red'; ctx.fillRect(en.x, en.y, en.w, en.h); }
+        if(img_enemy.complete && img_enemy.width > 0) ctx.drawImage(img_enemy, en.x, en.y, en.w, en.h);
+        else { ctx.fillStyle = '#f05'; ctx.fillRect(en.x, en.y, en.w, en.h); }
     });
 
-    // 플레이어 그리기
+    // 플레이어 (반전 포함)
     ctx.save();
-    if(player.direction === -1) { // 왼쪽 볼 때 이미지 반전
-        ctx.translate(player.x + player.w, player.y);
-        ctx.scale(-1, 1);
-        if(images.player.complete) ctx.drawImage(images.player, 0, 0, player.w, player.h);
-        else { ctx.fillStyle = 'cyan'; ctx.fillRect(0, 0, player.w, player.h); }
+    if(player.direction === -1) {
+        ctx.translate(player.x + player.w, player.y); ctx.scale(-1, 1);
+        if(img_player.complete && img_player.width > 0) ctx.drawImage(img_player, 0, 0, player.w, player.h);
+        else { ctx.fillStyle = '#0ff'; ctx.fillRect(0, 0, player.w, player.h); }
     } else {
-        if(images.player.complete) ctx.drawImage(images.player, player.x, player.y, player.w, player.h);
-        else { ctx.fillStyle = 'cyan'; ctx.fillRect(player.x, player.y, player.w, player.h); }
+        if(img_player.complete && img_player.width > 0) ctx.drawImage(img_player, player.x, player.y, player.w, player.h);
+        else { ctx.fillStyle = '#0ff'; ctx.fillRect(player.x, player.y, player.w, player.h); }
     }
     ctx.restore();
 
-    // 공격 이펙트 (K 눌렀을 때만 보임)
+    // 공격 효과 (휘두르는 검기 연출)
     if(player.isAttacking) {
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
-        const effectX = player.direction === 1 ? player.x + player.w : player.x - 100;
-        ctx.fillRect(effectX, player.y + 20, 100, 20);
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+        ctx.shadowBlur = 20; ctx.shadowColor = '#0ff';
+        const swordX = player.direction === 1 ? player.x + player.w : player.x - 120;
+        ctx.fillRect(swordX, player.y + 30, 120, 15);
+        ctx.shadowBlur = 0;
     }
 }
 
-function loop() {
-    update();
-    draw();
-    requestAnimationFrame(loop);
-}
+function loop() { update(); draw(); requestAnimationFrame(loop); }
 loop();
 </script>
 </body>
