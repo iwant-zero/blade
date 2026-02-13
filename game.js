@@ -3,68 +3,54 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
 // --- 1. 엔진 초기화 ---
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x020205);
-scene.fog = new THREE.FogExp2(0x020205, 0.02);
+scene.background = new THREE.Color(0x050508);
+scene.fog = new THREE.FogExp2(0x050508, 0.05);
 
 const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-camera.position.set(0, 5, 10);
+// 카메라 초기 위치 설정 (플레이어 뒤쪽 위)
+camera.position.set(0, 8, 12); 
 
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
-renderer.setPixelRatio(window.devicePixelRatio);
 document.body.appendChild(renderer.domElement);
 
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
 
-// --- 2. 텍스처 로딩 (이미지 우선 사용) ---
+// --- 2. 텍스처 로더 ---
 const loader = new THREE.TextureLoader();
-const floorTex = loader.load('assets/floor.jpg', (tex) => {
-    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-    tex.repeat.set(10, 10);
-});
-const playerTex = loader.load('assets/player.png'); // 빌드 시 사용할 주인공 이미지
+const playerTex = loader.load('assets/player.png'); 
 
 // --- 3. 환경 구성 ---
+const gridHelper = new THREE.GridHelper(100, 50, 0x00ffff, 0x222244);
+scene.add(gridHelper);
+
 const floorGeo = new THREE.PlaneGeometry(200, 200);
-const floorMat = new THREE.MeshStandardMaterial({ 
-    map: floorTex.image ? floorTex : null, 
-    color: floorTex.image ? 0xffffff : 0x1a1a2e 
-});
+const floorMat = new THREE.MeshStandardMaterial({ color: 0x101020, side: THREE.DoubleSide });
 const floor = new THREE.Mesh(floorGeo, floorMat);
 floor.rotation.x = -Math.PI / 2;
+floor.position.y = -0.01;
 scene.add(floor);
 
-const ambient = new THREE.AmbientLight(0xffffff, 0.8);
+const ambient = new THREE.AmbientLight(0xffffff, 1.2); 
 scene.add(ambient);
 
-const pointLight = new THREE.PointLight(0x00ffff, 20, 50);
-pointLight.position.set(0, 10, 0);
+const pointLight = new THREE.PointLight(0x00ffff, 50, 100);
+pointLight.position.set(0, 10, 5);
 scene.add(pointLight);
 
 // --- 4. 플레이어 & 에테르 블레이드 ---
 const player = new THREE.Group();
-
-// 캐릭터 (이미지가 있으면 이미지로, 없으면 캡슐로 표시)
 const charGeo = new THREE.BoxGeometry(1.5, 2.5, 0.1); 
-const charMat = new THREE.MeshStandardMaterial({ 
-    map: playerTex, 
-    transparent: true, 
-    side: THREE.DoubleSide 
-});
+const charMat = new THREE.MeshStandardMaterial({ map: playerTex, transparent: true, side: THREE.DoubleSide });
 const character = new THREE.Mesh(charGeo, charMat);
 character.position.y = 1.25;
 player.add(character);
 
-// 빛나는 검 (푸른 마력의 원천)
-const bladeGeo = new THREE.BoxGeometry(0.1, 2.5, 0.3);
-const bladeMat = new THREE.MeshStandardMaterial({ 
-    color: 0x00ffff, 
-    emissive: 0x00ffff, 
-    emissiveIntensity: 5 
-});
+const bladeGeo = new THREE.BoxGeometry(0.1, 2.8, 0.4);
+const bladeMat = new THREE.MeshStandardMaterial({ color: 0x00ffff, emissive: 0x00ffff, emissiveIntensity: 10 });
 const blade = new THREE.Mesh(bladeGeo, bladeMat);
-blade.position.set(0.8, 1.5, 0.2);
+blade.position.set(0.8, 1.8, 0.2);
 player.add(blade);
 scene.add(player);
 
@@ -74,31 +60,22 @@ let enemies = [];
 const keys = {};
 let isAttacking = false;
 
-// --- 6. 푸른 마력의 잔상 강화 로직 ---
+// --- 6. 푸른 마력의 잔상 로직 ---
 function createAetherAfterimage() {
     const worldPos = new THREE.Vector3();
     const worldQuat = new THREE.Quaternion();
     blade.getWorldPosition(worldPos);
     blade.getWorldQuaternion(worldQuat);
 
-    const ghost = new THREE.Mesh(
-        bladeGeo,
-        new THREE.MeshBasicMaterial({ 
-            color: 0x00ffff, 
-            transparent: true, 
-            opacity: 0.5,
-            blending: THREE.AdditiveBlending 
-        })
-    );
+    const ghost = new THREE.Mesh(bladeGeo, new THREE.MeshBasicMaterial({ color: 0x00ffff, transparent: true, opacity: 0.6, blending: THREE.AdditiveBlending }));
     ghost.position.copy(worldPos);
     ghost.quaternion.copy(worldQuat);
     scene.add(ghost);
 
-    // 잔상 데미지 판정
     const damageInterval = setInterval(() => {
         enemies.forEach((e, idx) => {
-            if(e.position.distanceTo(ghost.position) < 2.5) {
-                e.userData.hp -= 0.5;
+            if(e.position.distanceTo(ghost.position) < 3) {
+                e.userData.hp -= 1;
                 if(e.userData.hp <= 0) {
                     log("잔상이 적을 소멸시켰습니다.");
                     scene.remove(e);
@@ -111,28 +88,21 @@ function createAetherAfterimage() {
 
     let life = 1.0;
     const fade = setInterval(() => {
-        life -= 0.05;
+        life -= 0.08;
         ghost.material.opacity = life;
-        if(life <= 0) {
-            clearInterval(fade);
-            clearInterval(damageInterval);
-            scene.remove(ghost);
-        }
+        if(life <= 0) { clearInterval(fade); clearInterval(damageInterval); scene.remove(ghost); }
     }, 50);
 }
 
-// --- 7. 적 소환 & 사냥 ---
+// --- 7. 적 소환 ---
 function spawnEnemy() {
-    const enemy = new THREE.Mesh(
-        new THREE.SphereGeometry(1, 8, 8),
-        new THREE.MeshStandardMaterial({ color: 0xff0044, wireframe: true })
-    );
-    enemy.position.set(Math.random()*40-20, 1, Math.random()*40-20);
+    const enemy = new THREE.Mesh(new THREE.SphereGeometry(1, 12, 12), new THREE.MeshStandardMaterial({ color: 0xff0044, wireframe: true, emissive: 0xff0044 }));
+    enemy.position.set(Math.random()*60-30, 1, Math.random()*60-30);
     enemy.userData = { hp: 10 };
     scene.add(enemy);
     enemies.push(enemy);
 }
-for(let i=0; i<8; i++) spawnEnemy();
+for(let i=0; i<10; i++) spawnEnemy();
 
 // --- 8. 이벤트 처리 ---
 window.onkeydown = (e) => keys[e.code] = true;
@@ -142,7 +112,7 @@ window.onmousedown = () => { if(!isAttacking) performAttack(); };
 function performAttack() {
     isAttacking = true;
     log("에테르 블레이드 해방!");
-    setTimeout(() => { isAttacking = false; }, 600);
+    setTimeout(() => { isAttacking = false; }, 500);
 }
 
 function log(msg) {
@@ -150,18 +120,18 @@ function log(msg) {
     if(l) l.innerText = `> ${msg}`;
 }
 
-// --- 9. 메인 루프 ---
+// --- 9. 메인 루프 (이동 방향 수정됨) ---
 function animate() {
     requestAnimationFrame(animate);
     
-    // 플레이어 이동
-    const speed = 0.15;
-    if(keys['KeyW']) player.position.z -= speed;
-    if(keys['KeyS']) player.position.z += speed;
-    if(keys['KeyA']) player.position.x -= speed;
-    if(keys['KeyD']) player.position.x += speed;
+    // 이동 속도 및 방향 (W: -z 전진, S: +z 후진으로 수정)
+    const speed = 0.2;
+    if(keys['KeyW'] || keys['ArrowUp']) player.position.z -= speed;
+    if(keys['KeyS'] || keys['ArrowDown']) player.position.z += speed;
+    if(keys['KeyA'] || keys['ArrowLeft']) player.position.x -= speed;
+    if(keys['KeyD'] || keys['ArrowRight']) player.position.x += speed;
 
-    // 공격 애니메이션 & 잔상
+    // 공격 중 검 회전 및 잔상
     if(isAttacking) {
         blade.rotation.x += 0.5;
         createAetherAfterimage();
@@ -169,10 +139,11 @@ function animate() {
         blade.rotation.x = THREE.MathUtils.lerp(blade.rotation.x, Math.PI/6, 0.1);
     }
 
-    // UI 동기화
+    // UI 업데이트
     document.getElementById('hp-bar').style.width = stats.hp + '%';
     document.getElementById('mp-bar').style.width = stats.mp + '%';
 
+    // 카메라가 플레이어를 부드럽게 따라다님
     controls.target.lerp(player.position, 0.1);
     controls.update();
     renderer.render(scene, camera);
