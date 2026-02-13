@@ -2,33 +2,173 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Blade: Legend of 2026</title>
-    <link rel="stylesheet" href="style.css">
+    <title>2D BLADE: Legend of 2026</title>
+    <style>
+        body { margin: 0; background: #050505; color: #0ff; font-family: 'Courier New', monospace; overflow: hidden; }
+        canvas { display: block; background: #111; border-bottom: 5px solid #0ff; }
+        #ui { position: absolute; top: 20px; left: 20px; pointer-events: none; }
+        .bar-bg { width: 200px; height: 15px; background: #333; border: 1px solid #0ff; margin-bottom: 5px; }
+        #hp-bar { width: 100%; height: 100%; background: linear-gradient(90deg, #f05, #f7a); transition: 0.2s; }
+        #log { position: absolute; bottom: 20px; left: 20px; font-size: 14px; text-shadow: 2px 2px #000; }
+        .guide { position: absolute; top: 20px; right: 20px; text-align: right; font-size: 12px; }
+    </style>
 </head>
 <body>
-    <div id="ui-container">
-        <div class="player-hud">
-            <div class="label">AETHER KNIGHT</div>
-            <div class="bar-container"><div id="hp-bar" class="bar fill-hp"></div></div>
-            <div class="bar-container"><div id="mp-bar" class="bar fill-mp"></div></div>
-        </div>
-        <div class="skill-slots">
-            <div class="slot">L-Click<br>ATTACK</div>
-            <div class="slot">Q<br>DASH</div>
-            <div class="slot">I<br>INVEN</div>
-        </div>
-        <div id="game-log">> 시스템 접속 완료. 바닥 그리드 생성됨.</div>
+    <div id="ui">
+        <div style="font-weight: bold; margin-bottom: 5px;">AETHER KNIGHT</div>
+        <div class="bar-bg"><div id="hp-bar"></div></div>
     </div>
+    <div class="guide">AD: 이동 | SPACE: 점프 | K: 공격</div>
+    <div id="log">> 에테르 시스템 접속... 2D 모드 활성화.</div>
+    <canvas id="gameCanvas"></canvas>
 
-    <script type="importmap">
-        {
-            "imports": {
-                "three": "https://unpkg.com/three@0.158.0/build/three.module.js",
-                "three/addons/": "https://unpkg.com/three@0.158.0/examples/jsm/"
+<script>
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const hpBar = document.getElementById('hp-bar');
+const log = document.getElementById('log');
+
+canvas.width = window.innerWidth;
+canvas.height = 600;
+
+// --- 게임 설정 ---
+const gravity = 0.8;
+const player = {
+    x: 100, y: 400, width: 40, height: 60,
+    color: '#0ff', vx: 0, vy: 0,
+    grounded: false, isAttacking: false, hp: 100
+};
+
+const enemies = [];
+const afterimages = []; // 푸른 마력의 잔상 저장소
+
+// --- 입력 처리 ---
+const keys = {};
+window.onkeydown = (e) => keys[e.code] = true;
+window.onkeyup = (e) => keys[e.code] = false;
+window.onkeypress = (e) => { if(e.code === 'KeyK') attack(); };
+
+function attack() {
+    if(player.isAttacking) return;
+    player.isAttacking = true;
+    log.innerText = "> 에테르 블레이드 해방!";
+    
+    // 공격 판정 및 잔상 생성
+    createAfterimage();
+    
+    setTimeout(() => {
+        enemies.forEach((en, i) => {
+            const dist = Math.abs((player.x + player.width/2) - (en.x + en.width/2));
+            if(dist < 100) {
+                en.hp -= 50;
+                log.innerText = "> 적에게 타격! 잔상이 마력을 흡수합니다.";
+                if(en.hp <= 0) enemies.splice(i, 1);
             }
+        });
+        player.isAttacking = false;
+    }, 300);
+}
+
+// --- 푸른 마력의 잔상 생성 ---
+function createAfterimage() {
+    afterimages.push({
+        x: player.x, y: player.y,
+        opacity: 0.6,
+        life: 20
+    });
+}
+
+function spawnEnemy() {
+    if(enemies.length < 3) {
+        enemies.push({ x: canvas.width + 100, y: 440, width: 40, height: 60, color: '#f05', hp: 100 });
+    }
+}
+setInterval(spawnEnemy, 3000);
+
+// --- 메인 루프 ---
+function update() {
+    // 이동 로직
+    if(keys['KeyA']) player.vx = -7;
+    else if(keys['KeyD']) player.vx = 7;
+    else player.vx *= 0.8;
+
+    if(keys['Space'] && player.grounded) {
+        player.vy = -15;
+        player.grounded = false;
+    }
+
+    player.vy += gravity;
+    player.x += player.vx;
+    player.y += player.vy;
+
+    // 바닥 충돌
+    if(player.y > 440) {
+        player.y = 440;
+        player.vy = 0;
+        player.grounded = true;
+    }
+
+    // 적 이동 및 충돌
+    enemies.forEach(en => {
+        en.x -= 2; // 플레이어를 향해 다가옴
+        if(Math.abs(player.x - en.x) < 30 && Math.abs(player.y - en.y) < 30) {
+            player.hp -= 0.5;
+            hpBar.style.width = player.hp + "%";
         }
-    </script>
-    <script type="module" src="game.js"></script>
+    });
+
+    // 잔상 관리
+    afterimages.forEach((img, i) => {
+        img.opacity -= 0.03;
+        img.life--;
+        if(img.life <= 0) afterimages.splice(i, 1);
+    });
+}
+
+function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // 바닥선
+    ctx.strokeStyle = '#0ff';
+    ctx.beginPath();
+    ctx.moveTo(0, 500);
+    ctx.lineTo(canvas.width, 500);
+    ctx.stroke();
+
+    // 푸른 마력의 잔상 그리기
+    afterimages.forEach(img => {
+        ctx.fillStyle = `rgba(0, 255, 255, ${img.opacity})`;
+        ctx.fillRect(img.x - 20, img.y, player.width, player.height);
+        ctx.fillRect(img.x + 20, img.y, player.width, player.height);
+    });
+
+    // 플레이어
+    ctx.fillStyle = player.color;
+    ctx.shadowBlur = 15;
+    ctx.shadowColor = '#0ff';
+    ctx.fillRect(player.x, player.y, player.width, player.height);
+    
+    // 에테르 블레이드 (공격 시)
+    if(player.isAttacking) {
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(player.x + 40, player.y + 10, 60, 10);
+    }
+
+    // 적
+    ctx.shadowColor = '#f05';
+    enemies.forEach(en => {
+        ctx.fillStyle = en.color;
+        ctx.fillRect(en.x, en.y, en.width, en.height);
+    });
+    ctx.shadowBlur = 0;
+}
+
+function loop() {
+    update();
+    draw();
+    requestAnimationFrame(loop);
+}
+loop();
+</script>
 </body>
 </html>
