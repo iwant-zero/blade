@@ -1,33 +1,38 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
-  <title>스마트폰 대응 간단 RPG 샘플</title>
-  
-  <!-- Orbitron 폰트 -->
-  <link href="https://fonts.googleapis.com/css2?family=Orbitron&display=swap" rel="stylesheet" />
-  
-  <link rel="stylesheet" href="style.css" />
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Blade: Legend of 2026</title>
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <div id="game-container">
-    <div id="player"></div>
-    <div id="monster"></div>
-    <div id="ui">
-      <div id="score">점수: 0</div>
+    <div id="ui-container">
+        <div class="player-hud">
+            <div class="label">AETHER KNIGHT</div>
+            <div class="bar-container"><div id="hp-bar" class="bar fill-hp"></div></div>
+            <div class="bar-container"><div id="mp-bar" class="bar fill-mp"></div></div>
+        </div>
+
+        <div class="skill-slots">
+            <div class="slot">L-Click<br>ATTACK</div>
+            <div class="slot">Q<br>NOVA</div>
+            <div class="slot">I<br>BAG</div>
+        </div>
+
+        <div id="game-log">> 시스템 접속 중...</div>
     </div>
-  </div>
 
-  <!-- 모바일용 가상 조이스틱 및 공격 버튼 -->
-  <div id="touch-controls">
-    <div id="btn-up" class="btn-touch">▲</div>
-    <div id="btn-left" class="btn-touch">◀</div>
-    <div id="btn-down" class="btn-touch">▼</div>
-    <div id="btn-right" class="btn-touch">▶</div>
-    <div id="btn-attack" class="btn-touch attack">공격</div>
-  </div>
-
-  <script src="game.js"></script>
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.158.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.158.0/examples/jsm/"
+            }
+        }
+    </script>
+    
+    <script type="module" src="game.js"></script>
 </body>
 </html>
+
