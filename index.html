@@ -4,303 +4,281 @@
     <meta charset="UTF-8">
     <title>BLADE: HIGH-VISIBILITY</title>
     <style>
-        body { margin: 0; background: #000; overflow: hidden; font-family: 'Arial Black', sans-serif; }
-        canvas { display: block; }
+        body { margin: 0; overflow: hidden; background: #000; font-family: 'Arial', sans-serif; }
+        canvas { display: block; background: #eee; }
         
-        /* 2번째 요청: UI 글자색 변경 (어두운 계열) 및 폰트 크기 확대 */
-        #ui { 
-            position: absolute; top: 20px; left: 20px; 
-            color: #1a1a1a; /* 매우 어두운 회색 */
-            pointer-events: none; 
-            z-index: 10; 
-            background: rgba(255, 255, 255, 0.4); /* 글씨가 잘 보이게 UI 뒤에 살짝 밝은 배경 추가 */
-            padding: 15px;
-            border-radius: 10px;
+        /* UI 스타일 - 시인성 강화 */
+        #ui {
+            position: absolute; top: 20px; left: 20px;
+            color: #1a1a1a; font-weight: bold; font-size: 20px;
+            text-shadow: 1px 1px 2px white; pointer-events: none;
         }
-        #stats { font-size: 24px; font-weight: 900; margin-bottom: 5px; }
-        #score { font-size: 26px; font-weight: 900; margin-top: 10px; color: #003366; }
-        #awk-timer { color: #660066; font-size: 22px; font-weight: 900; }
-        
-        .bar-container { width: 300px; height: 18px; background: rgba(0,0,0,0.3); border: 2px solid #1a1a1a; margin: 5px 0; }
-        #hp-fill { width: 100%; height: 100%; background: #cc0033; transition: 0.1s; }
-        #exp-fill { width: 0%; height: 100%; background: #008822; transition: 0.3s; }
-        
-        #overlay, #pause-menu { 
-            position: absolute; inset: 0; background: rgba(0,0,0,0.85); 
-            display: none; flex-direction: column; align-items: center; justify-content: center; color: #fff; z-index: 100; 
+        #hp-bar-container {
+            position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%);
+            width: 300px; height: 25px; background: rgba(0,0,0,0.5); border: 3px solid #1a1a1a;
         }
-        .menu-btn { padding: 15px 40px; background: #1a1a1a; border: 2px solid #fff; font-weight: bold; cursor: pointer; font-size: 20px; margin: 10px; color: #fff; }
+        #hp-bar { width: 100%; height: 100%; background: #ff3333; transition: width 0.2s; }
         
-        /* 3번째 요청: 아이템 메시지 폰트 확대 및 어두운 색상 */
-        #item-msg { 
-            position: absolute; top: 25%; left: 50%; transform: translateX(-50%); 
-            font-size: 45px; font-weight: 900; text-align: center; pointer-events: none; 
-            z-index: 50; display: none; color: #222; text-shadow: 2px 2px 10px rgba(255,255,255,0.8);
+        /* 메뉴 스타일 */
+        #menu {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            background: rgba(255,255,255,0.9); padding: 30px; border-radius: 15px;
+            text-align: center; display: none; border: 5px solid #1a1a1a;
         }
+        button {
+            display: block; width: 200px; margin: 10px auto; padding: 10px;
+            font-size: 18px; cursor: pointer; background: #1a1a1a; color: white; border: none;
+        }
+        button:hover { background: #444; }
     </style>
 </head>
 <body>
-    <div id="ui">
-        <div id="stats">LV.1 에테르 기사</div>
-        <div class="bar-container"><div id="hp-fill"></div></div>
-        <div id="awk-timer" style="display:none;">OVERDRIVE: 10s</div>
-        <div id="score">SCORE: 0</div>
-        <div class="bar-container" style="height:8px;"><div id="exp-fill"></div></div>
-    </div>
 
-    <div id="item-msg"></div>
+<div id="ui">
+    <div id="stats">LV.1 에테르 기사</div>
+    <div id="gold">GOLD: 0</div>
+</div>
 
-    <div id="pause-menu">
-        <h1>PAUSED</h1>
-        <button class="menu-btn" onclick="togglePause()">RESUME</button>
-        <button class="menu-btn" onclick="location.reload()">RESTART</button>
-    </div>
+<div id="hp-bar-container"><div id="hp-bar"></div></div>
 
-    <div id="overlay">
-        <h1 style="font-size: 60px;">GAME OVER</h1>
-        <div id="final-result" style="font-size: 30px; margin-bottom: 20px;"></div>
-        <button class="menu-btn" onclick="location.reload()">RETRY</button>
-    </div>
+<div id="menu">
+    <h2 id="menu-title">일시정지</h2>
+    <button onclick="resumeGame()">계속하기</button>
+    <button onclick="saveGame()">저장하기</button>
+    <button onclick="loadGame()">불러오기</button>
+    <button onclick="location.reload()">다시 시작</button>
+</div>
 
-    <canvas id="gameCanvas"></canvas>
+<canvas id="gameCanvas"></canvas>
 
 <script>
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
-const hpFill = document.getElementById('hp-fill');
-const expFill = document.getElementById('exp-fill');
-const itemMsg = document.getElementById('item-msg');
-const awkTimerUI = document.getElementById('awk-timer');
-
 canvas.width = window.innerWidth;
 canvas.height = window.innerHeight;
 
-// --- 1 & 3번째 요청: 모든 드랍템 및 번개 이미지 변수 추가 ---
-const img = {
-    p: new Image(), e: new Image(), b: new Image(), bg: new Image(),
-    ln: new Image(), // 번개 이미지
-    it_core: new Image(), it_thunder: new Image(), it_heal: new Image() // 아이템 이미지
-};
-img.p.src = 'assets/player.png';
-img.e.src = 'assets/enemy.png';
-img.b.src = 'assets/boss.png';
-img.bg.src = 'assets/background.png';
-img.ln.src = 'assets/lightning.png'; // 번개
-img.it_core.src = 'assets/item_core.png';
-img.it_thunder.src = 'assets/item_thunder.png';
-img.it_heal.src = 'assets/item_heal.png';
+// --- 리소스 로드 ---
+const images = {};
+const imgNames = ['player', 'enemy', 'boss', 'background', 'item_core', 'item_thunder', 'item_heal', 'lightning', 'aura'];
+imgNames.forEach(name => {
+    images[name] = new Image();
+    images[name].src = `assets/${name}.png`;
+});
 
-const bgm = new Audio('assets/bgm.mp3'); bgm.loop = true; bgm.volume = 0.4;
-
-let isGameOver = false; let isPaused = false;
-let score = 0; let level = 1; let exp = 0;
-let coreStack = 0; let awakeningTimeLeft = 0; let coreColor = '#0ff';
+// --- 게임 변수 ---
+let level = 1, exp = 0, gold = 0, isPaused = false;
 const floorY = canvas.height - 100;
 
 const player = {
-    x: canvas.width/2, y: floorY - 110, w: 80, h: 110,
-    vx: 0, vy: 0, grounded: false, dir: 1, hp: 100, maxHp: 100, baseAtk: 45
+    x: 100, y: floorY - 80, w: 80, h: 80,
+    hp: 100, maxHp: 100, baseAtk: 40,
+    isOverdrive: false, overdriveTime: 0,
+    auras: [] // 잔상(칼날) 데이터
 };
 
-let enemies = []; let items = []; let lightnings = []; let afterimages = [];
-const keys = {};
-
-function togglePause() {
-    if(isGameOver) return;
-    isPaused = !isPaused;
-    document.getElementById('pause-menu').style.display = isPaused ? 'flex' : 'none';
-    if(isPaused) bgm.pause(); else if(bgm.currentTime > 0) bgm.play().catch(()=>{});
+// 초기 잔상 3개 생성
+for(let i=0; i<3; i++) {
+    player.auras.push({ angle: (Math.PI*2/3)*i, dist: 120, speed: 0.08 });
 }
 
-function showItemNotice(text, color) {
-    itemMsg.innerText = text; itemMsg.style.display = 'block';
-    itemMsg.style.color = '#1a1a1a'; // 문구도 어두운 색으로 고정
-    setTimeout(() => { itemMsg.style.display = 'none'; }, 2000);
+let enemies = [], items = [], lightnings = [], particles = [], boss = null;
+
+// --- 유틸리티 ---
+function checkCollision(a, b) {
+    return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
 }
 
-// 번개 스폰 (10가닥)
-function spawnLightnings() {
-    if(isGameOver || isPaused) return;
-    for(let i=0; i<10; i++) {
-        lightnings.push({ x: Math.random() * canvas.width, y: -200, w: 60, h: canvas.height + 200, life: 75 });
+function createParticles(x, y, color) {
+    for(let i=0; i<8; i++) {
+        particles.push({ x, y, vx: (Math.random()-0.5)*10, vy: (Math.random()-0.5)*10, life: 20, color });
     }
 }
-setInterval(spawnLightnings, 5000);
 
+// --- 핵심 로직 ---
 function spawnEnemy() {
-    if(isGameOver || isPaused) return;
-    const isBoss = (level % 10 === 0 && enemies.filter(e => e.isBoss).length === 0);
-    if(isBoss) {
-        const bs = 1 + (level / 100);
-        enemies.push({
-            x: canvas.width + 200, y: floorY - (230 * bs), w: 180 * bs, h: 230 * bs,
-            hp: 2500 * Math.pow(1.7, level/10), maxHp: 2500 * Math.pow(1.7, level/10),
-            speed: 1.2 + (level/70), isBoss: true, dead: false
-        });
-        showItemNotice(`BOSS ALERT: LV.${level}`);
+    if (boss) return;
+    enemies.push({
+        x: canvas.width + 100, y: floorY - 60, w: 60, h: 60,
+        hp: 50 + (level * 5), speed: 3 + (level * 0.1)
+    });
+}
+
+function spawnBoss() {
+    boss = {
+        x: canvas.width + 200, y: floorY - 200, w: 200, h: 200,
+        hp: 1000 + (level * 100), maxHp: 1000 + (level * 100), speed: 1.5
+    };
+}
+
+function spawnLightning() {
+    for(let i=0; i<10; i++) {
+        lightnings.push({ x: Math.random()*canvas.width, y: 0, w: 100, h: canvas.height, life: 40 });
+    }
+}
+
+// --- 저장/불러오기 시스템 ---
+function saveGame() {
+    const saveData = { level, exp, gold, hp: player.hp, baseAtk: player.baseAtk };
+    localStorage.setItem('blade_save_data', JSON.stringify(saveData));
+    alert("현재 진행 상태가 저장되었습니다!");
+}
+
+function loadGame() {
+    const data = JSON.parse(localStorage.getItem('blade_save_data'));
+    if (data) {
+        level = data.level; exp = data.exp; gold = data.gold;
+        player.hp = data.hp; player.baseAtk = data.baseAtk;
+        resumeGame();
+        alert("성공적으로 불러왔습니다!");
     } else {
-        enemies.push({
-            x: Math.random() > 0.5 ? -150 : canvas.width + 150,
-            y: floorY - 90, w: 75, h: 95, hp: 100 + (level * 30),
-            speed: 2.8 + (level * 0.25), isBoss: false, dead: false
-        });
+        alert("저장된 데이터가 없습니다.");
     }
 }
-setInterval(spawnEnemy, 2000);
 
-function tryDropItem(x, y) {
-    if (Math.random() > 0.2) return;
-    const r = Math.random();
-    let type = (r < 0.2) ? 'CORE' : (r < 0.5) ? 'THUNDER' : 'HEAL';
-    items.push({ x, y: floorY - 60, w: 55, h: 55, type });
+function resumeGame() {
+    isPaused = false;
+    document.getElementById('menu').style.display = 'none';
 }
 
-window.onkeydown = (e) => { 
-    if(e.code === 'KeyP') togglePause();
-    keys[e.code] = true; 
-    if(!isPaused && bgm.paused) bgm.play().catch(()=>{}); 
-};
-window.onkeyup = (e) => keys[e.code] = false;
+window.addEventListener('keydown', (e) => {
+    if(e.code === 'KeyP') {
+        isPaused = !isPaused;
+        document.getElementById('menu').style.display = isPaused ? 'block' : 'none';
+    }
+});
 
+// --- 메인 루프 ---
 function update() {
-    if(isGameOver || isPaused) return;
+    if (isPaused) return;
 
-    if(awakeningTimeLeft > 0) {
-        awakeningTimeLeft -= 0.016;
-        awkTimerUI.style.display = 'block';
-        awkTimerUI.innerText = `OVERDRIVE: ${Math.max(0, awakeningTimeLeft).toFixed(1)}s (x${coreStack})`;
-        if(awakeningTimeLeft <= 0) { coreStack = 0; coreColor = '#0ff'; awkTimerUI.style.display = 'none'; }
+    // 1. 레벨업 체크
+    if(exp >= 100) {
+        level++; exp = 0; player.baseAtk += 15;
+        player.hp = Math.min(player.hp + 20, 100); // 레벨업 시 체력 보너스
+        if(level % 10 === 0) spawnBoss();
+        document.getElementById('stats').innerText = `LV.${level} 에테르 기사`;
     }
 
-    if(keys['KeyA']) { player.vx = -9; player.dir = -1; }
-    else if(keys['KeyD']) { player.vx = 9; player.dir = 1; }
-    else player.vx *= 0.85;
-    if(keys['Space'] && player.grounded) { player.vy = -19; player.grounded = false; }
-    player.vy += 0.9; player.x += player.vx; player.y += player.vy;
+    // 2. 오버드라이브(각성) 체크
+    if(player.isOverdrive) {
+        player.overdriveTime--;
+        if(player.overdriveTime <= 0) player.isOverdrive = false;
+    }
 
-    if(player.x < 0) player.x = 0;
-    if(player.x > canvas.width - player.w) player.x = canvas.width - player.w;
-    if(player.y > floorY - player.h) { player.y = floorY - player.h; player.vy = 0; player.grounded = true; }
+    // 3. 적 업데이트 및 잔상 충돌
+    enemies.forEach((en, i) => {
+        en.x -= en.speed;
+        if(checkCollision(player, en)) player.hp -= 0.5; // 일반몹 데미지
 
-    // 자동 공격
-    const currentAtk = player.baseAtk * (1 + coreStack * 0.6);
-    const rotationSpeed = 0.2 + (coreStack * 0.06);
-    for(let i=0; i < (1 + coreStack); i++) {
-        let angle = (Date.now() / 1000 * (rotationSpeed * 10)) + (i * Math.PI * 2 / (1 + coreStack));
-        afterimages.push({
-            x: player.x + Math.cos(angle) * 110,
-            y: player.y + Math.sin(angle) * 110,
-            opacity: 0.8, life: 12, color: coreColor
+        player.auras.forEach(au => {
+            const auX = player.x + player.w/2 + Math.cos(au.angle) * au.dist;
+            const auY = player.y + player.h/2 + Math.sin(au.angle) * au.dist;
+            if(auX > en.x && auX < en.x + en.w && auY > en.y && auY < en.y + en.h) {
+                en.hp -= (player.baseAtk + (player.isOverdrive ? 50 : 0));
+                createParticles(auX, auY, '#00ffff');
+            }
         });
+        if(en.hp <= 0) { enemies.splice(i, 1); exp += 10; gold += 20; }
+    });
+
+    // 4. 보스 업데이트 (버그 수정됨)
+    if(boss) {
+        if(boss.x > canvas.width - 300) boss.x -= boss.speed;
+        if(checkCollision(player, boss)) player.hp -= 1.5; // 보스 접촉 데미지
+
+        player.auras.forEach(au => {
+            const auX = player.x + player.w/2 + Math.cos(au.angle) * au.dist;
+            const auY = player.y + player.h/2 + Math.sin(au.angle) * au.dist;
+            // 보스의 히트박스를 이미지 크기에 맞게 확실히 판정
+            if(auX > boss.x && auX < boss.x + boss.w && auY > boss.y && auY < boss.y + boss.h) {
+                boss.hp -= (player.baseAtk + (player.isOverdrive ? 100 : 0));
+                createParticles(auX, auY, '#ff00ff');
+            }
+        });
+        if(boss.hp <= 0) { boss = null; exp += 100; gold += 500; }
     }
 
-    enemies.forEach(en => {
-        if(en.x < player.x) en.x += en.speed; else en.x -= en.speed;
-        if(Math.abs(player.x - en.x) < 55 && Math.abs(player.y - en.y) < 65) player.hp -= en.isBoss ? 0.8 : 0.3;
-        const d = Math.sqrt((player.x - en.x)**2 + (player.y - en.y)**2);
-        if(d < 190 + (coreStack * 10)) {
-            en.hp -= currentAtk * 0.17;
-            if(en.hp <= 0) en.dead = true;
-        }
-    });
-
-    enemies = enemies.filter(en => {
-        if(en.dead) { tryDropItem(en.x, en.y); score += en.isBoss ? 8000 : 150; exp += en.isBoss ? 150 : 30; return false; }
-        return true;
-    });
-
-    if(exp >= 100) { level++; exp = 0; player.baseAtk += 15; document.getElementById('stats').innerText = `LV.${level} 에테르 기사`; }
-    hpFill.style.width = Math.max(0, player.hp) + "%";
-    expFill.style.width = exp + "%";
-    document.getElementById('score').innerText = `SCORE: ${score}`;
-    if(player.hp <= 0) endGame();
-
-    // 번개 로직
-    lightnings.forEach(ln => {
+    // 5. 번개 및 아이템 로직 (생략된 기존 충돌 로직 포함)
+    lightnings.forEach((ln, i) => {
         ln.life--;
         if(ln.life < 15 && ln.life > 0) {
-            if(player.x < ln.x + ln.w && player.x + player.w > ln.x) player.hp -= 3;
+            if(player.x < ln.x + ln.w && player.x + player.w > ln.x) player.hp -= 2;
         }
-    });
-    lightnings = lightnings.filter(ln => ln.life > 0);
-
-    // 아이템 습득 로직
-    items = items.filter(it => {
-        if(Math.abs(player.x - it.x) < 65 && Math.abs(player.y - it.y) < 100) {
-            if(it.type === 'CORE') { coreStack++; awakeningTimeLeft = 10; coreColor = '#f0f'; showItemNotice("CORE AWAKENED!"); }
-            else if(it.type === 'THUNDER') { enemies.forEach(e => e.hp -= 4000); showItemNotice("ETHER THUNDER!"); }
-            else if(it.type === 'HEAL') { player.hp = Math.min(player.maxHp, player.hp + 60); showItemNotice("RECOVERED!"); }
-            return false;
-        }
-        return true;
+        if(ln.life <= 0) lightnings.splice(i, 1);
     });
 
-    afterimages.forEach(img => { img.opacity -= 0.07; img.life--; });
-    afterimages = afterimages.filter(img => img.life > 0);
-}
+    items.forEach((it, i) => {
+        if(checkCollision(player, it)) {
+            if(it.type === 'CORE') { player.isOverdrive = true; player.overdriveTime = 600; }
+            if(it.type === 'THUNDER') enemies = []; 
+            if(it.type === 'HEAL') player.hp = Math.min(player.hp + 60, 100);
+            items.splice(i, 1);
+        }
+    });
 
-function endGame() {
-    isGameOver = true; document.getElementById('overlay').style.display = "flex"; bgm.pause();
-    document.getElementById('final-result').innerText = `SCORE: ${score} | LEVEL: ${level}`;
+    // 파티클
+    particles.forEach((p, i) => { p.x += p.vx; p.y += p.vy; p.life--; if(p.life <= 0) particles.splice(i, 1); });
+
+    // UI 갱신
+    document.getElementById('hp-bar').style.width = player.hp + "%";
+    document.getElementById('gold').innerText = `GOLD: ${gold}`;
+    
+    if(player.hp <= 0) { alert("GAME OVER"); location.reload(); }
 }
 
 function draw() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    if(img.bg.complete && img.bg.width > 0) ctx.drawImage(img.bg, 0, 0, canvas.width, canvas.height);
-    else { ctx.fillStyle = '#010108'; ctx.fillRect(0,0,canvas.width,canvas.height); }
+    
+    // 배경
+    ctx.drawImage(images.background, 0, 0, canvas.width, canvas.height);
 
-    // 3번째 요청: 번개 이미지 드로잉
-    lightnings.forEach(ln => {
-        if(img.ln.complete && img.ln.width > 0) {
-            ctx.globalAlpha = ln.life > 15 ? 0.2 : 1.0;
-            ctx.drawImage(img.ln, ln.x, ln.y, ln.w, ln.h);
-            ctx.globalAlpha = 1.0;
-        } else {
-            ctx.fillStyle = ln.life > 15 ? 'rgba(255, 255, 255, 0.1)' : 'rgba(255, 255, 255, 0.9)';
-            ctx.fillRect(ln.x, 0, ln.w, canvas.height);
-        }
+    // 아이템 & 적
+    items.forEach(it => ctx.drawImage(images[`item_${it.type.toLowerCase()}`], it.x, it.y, it.w, it.h));
+    enemies.forEach(en => ctx.drawImage(images.enemy, en.x, en.y, en.w, en.h));
+    if(boss) {
+        ctx.drawImage(images.boss, boss.x, boss.y, boss.w, boss.h);
+        // 보스 체력바
+        ctx.fillStyle = 'red'; ctx.fillRect(boss.x, boss.y - 20, (boss.hp/boss.maxHp)*boss.w, 10);
+    }
+
+    // 번개
+    lightnings.forEach(ln => { if(ln.life < 15) ctx.drawImage(images.lightning, ln.x, ln.y, ln.w, ln.h); });
+
+    // 플레이어 & 잔상(이미지)
+    ctx.drawImage(images.player, player.x, player.y, player.w, player.h);
+    player.auras.forEach(au => {
+        const auX = player.x + player.w/2 + Math.cos(au.angle) * au.dist;
+        const auY = player.y + player.h/2 + Math.sin(au.angle) * au.dist;
+        ctx.save();
+        ctx.translate(auX, auY);
+        ctx.rotate(au.angle + Math.PI/2);
+        // 각성 시 핑크, 평소엔 푸른 잔상 이미지 효과 (GlobalCompositeOperation 활용)
+        if(player.isOverdrive) ctx.filter = "hue-rotate(280deg) saturate(2)"; 
+        ctx.drawImage(images.aura, -30, -30, 60, 60);
+        ctx.restore();
+        if(!isPaused) au.angle += au.speed;
     });
 
-    ctx.strokeStyle = '#1a1a1a'; ctx.lineWidth = 4;
-    ctx.beginPath(); ctx.moveTo(0, floorY); ctx.lineTo(canvas.width, floorY); ctx.stroke();
-
-    // 1번째 요청: 아이템 이미지 드로잉
-    items.forEach(it => {
-        let itemImg = img.it_heal;
-        if(it.type === 'CORE') itemImg = img.it_core;
-        else if(it.type === 'THUNDER') itemImg = img.it_thunder;
-        
-        if(itemImg.complete && itemImg.width > 0) {
-            ctx.drawImage(itemImg, it.x, it.y, it.w, it.h);
-        } else {
-            ctx.fillStyle = it.type === 'CORE' ? '#f0f' : (it.type === 'THUNDER' ? '#ff0' : '#0f0');
-            ctx.fillRect(it.x, it.y, it.w, it.h);
-        }
-    });
-
-    afterimages.forEach(img => {
-        ctx.globalAlpha = img.opacity; ctx.fillStyle = img.color || '#0ff';
-        ctx.fillRect(img.x, img.y, 22, 22);
-    });
-    ctx.globalAlpha = 1;
-
-    enemies.forEach(en => {
-        const image = en.isBoss ? img.b : img.e;
-        if(image.complete && image.width > 0) ctx.drawImage(image, en.x, en.y, en.w, en.h);
-        else { ctx.fillStyle = en.isBoss ? '#f00' : '#f05'; ctx.fillRect(en.x, en.y, en.w, en.h); }
-        if(en.isBoss) {
-            ctx.fillStyle = '#1a1a1a'; ctx.fillRect(en.x, en.y - 30, en.w, 15);
-            ctx.fillStyle = '#cc0000'; ctx.fillRect(en.x, en.y - 30, en.w * (en.hp/en.maxHp), 15);
-        }
-    });
-
-    ctx.save();
-    if(player.dir === -1) { ctx.translate(player.x + player.w, player.y); ctx.scale(-1, 1); ctx.drawImage(img.p, 0, 0, player.w, player.h); }
-    else { ctx.drawImage(img.p, player.x, player.y, player.w, player.h); }
-    ctx.restore();
+    particles.forEach(p => { ctx.fillStyle = p.color; ctx.fillRect(p.x, p.y, 4, 4); });
 }
 
-function loop() { update(); draw(); requestAnimationFrame(loop); }
+function loop() {
+    update();
+    draw();
+    requestAnimationFrame(loop);
+}
+
+// 타이머 설정
+setInterval(spawnEnemy, 2000);
+setInterval(spawnLightning, 5000);
+setInterval(() => {
+    if(!isPaused && !boss) {
+        const r = Math.random();
+        const type = r < 0.2 ? 'CORE' : r < 0.5 ? 'THUNDER' : 'HEAL';
+        items.push({ x: Math.random()*(canvas.width-100), y: floorY - 60, w: 55, h: 55, type });
+    }
+}, 8000);
+
 loop();
 </script>
 </body>
