@@ -2,31 +2,33 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <title>BLADE: THE EVOLUTION</title>
+    <title>BLADE: AETHER SURVIVOR</title>
     <style>
         body { margin: 0; background: #000; overflow: hidden; font-family: 'Courier New', monospace; }
         canvas { display: block; }
-        #ui { position: absolute; top: 20px; left: 20px; color: #0ff; pointer-events: none; text-shadow: 0 0 5px #000; }
-        .bar-container { width: 250px; height: 15px; background: rgba(0,0,0,0.5); border: 1px solid #0ff; margin: 5px 0; }
+        #ui { position: absolute; top: 20px; left: 20px; color: #0ff; pointer-events: none; text-shadow: 0 0 5px #000; z-index: 10; }
+        .bar-container { width: 250px; height: 12px; background: rgba(0,0,0,0.5); border: 1px solid #0ff; margin: 5px 0; position: relative; }
         #hp-fill { width: 100%; height: 100%; background: #f05; transition: 0.1s; }
         #exp-fill { width: 0%; height: 100%; background: #0f0; transition: 0.3s; }
         #overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.8); display: none; flex-direction: column; align-items: center; justify-content: center; color: #fff; z-index: 100; }
-        button { padding: 10px 20px; background: #0ff; border: none; font-weight: bold; cursor: pointer; margin-top: 20px; }
+        button { padding: 12px 30px; background: #0ff; border: none; font-weight: bold; cursor: pointer; font-size: 16px; }
+        #msg-box { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 30px; font-weight: bold; color: #fff; text-shadow: 0 0 15px #0ff; pointer-events: none; display: none; }
     </style>
 </head>
 <body>
     <div id="ui">
-        <div id="stats">LV. 1 AETHER KNIGHT</div>
+        <div id="stats">LV.1 에테르 기사 (각성 전)</div>
         <div class="bar-container"><div id="hp-fill"></div></div>
-        <div style="font-size: 10px;">EXP</div>
-        <div class="bar-container" style="height: 5px;"><div id="exp-fill"></div></div>
-        <div id="score" style="font-size: 20px; margin-top: 10px;">SCORE: 0</div>
+        <div id="score">SCORE: 0</div>
+        <div id="item-info" style="font-size: 12px; color: #ff0;"></div>
     </div>
 
+    <div id="msg-box"></div>
+
     <div id="overlay">
-        <h1 style="color: #f05;">MISSION FAILED</h1>
-        <div id="final-result">SCORE: 0 | LEVEL: 1</div>
-        <button onclick="location.reload()">시스템 재부팅 (RETRY)</button>
+        <h1 id="over-title" style="color: #f05;">MISSION FAILED</h1>
+        <div id="final-result"></div>
+        <button onclick="location.reload()">시스템 재부팅</button>
     </div>
 
     <canvas id="gameCanvas"></canvas>
@@ -35,92 +37,145 @@
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 const hpFill = document.getElementById('hp-fill');
-const expFill = document.getElementById('exp-fill');
 const scoreLabel = document.getElementById('score');
 const statsLabel = document.getElementById('stats');
 const overlay = document.getElementById('overlay');
-const finalResult = document.getElementById('final-result');
+const msgBox = document.getElementById('msg-box');
 
 canvas.width = window.innerWidth;
 canvas.height = window.innerHeight;
 
-// --- 이미지 ---
-const img_player = new Image(); img_player.src = 'assets/player.png';
-const img_enemy = new Image(); img_enemy.src = 'assets/enemy.png';
-const img_bg = new Image(); img_bg.src = 'assets/background.png';
+// --- 오디오 설정 ---
+const bgm = new Audio('assets/bgm.mp3');
+bgm.loop = true;
+bgm.volume = 0.5;
 
-// --- 게임 상태 ---
+// --- 이미지 로드 ---
+const img = {
+    p: new Image(), e: new Image(), b: new Image(), bg: new Image()
+};
+img.p.src = 'assets/player.png';
+img.e.src = 'assets/enemy.png';
+img.b.src = 'assets/boss.png';
+img.bg.src = 'assets/background.png';
+
+// --- 게임 변수 ---
 let isGameOver = false;
 let score = 0;
 let level = 1;
 let exp = 0;
+let coreActive = false; // 전설의 코어 상태
+let coreColor = '#0ff'; // 잔상 색상
+let autoRotation = 0;   // 자동 공격 회전각
 const floorY = canvas.height - 100;
 
 const player = {
-    x: 100, y: floorY - 100, w: 80, h: 100,
-    vx: 0, vy: 0, grounded: false, dir: 1,
-    isAttacking: false, hp: 100, maxHp: 100, atk: 40
+    x: canvas.width/2, y: floorY - 100, w: 70, h: 90,
+    vx: 0, vy: 0, grounded: false, dir: 1, hp: 100, maxHp: 100, atk: 25
 };
 
 let enemies = [];
+let items = [];
+let lightnings = [];
 let afterimages = [];
 
-// --- 시스템 로직 ---
-window.onkeydown = (e) => {
-    if(isGameOver) return;
-    if(e.code === 'KeyK') attack();
-    keys[e.code] = true;
+// --- 입력 처리 ---
+const keys = {};
+window.onkeydown = (e) => { 
+    keys[e.code] = true; 
+    if(bgm.paused) bgm.play(); // 첫 입력 시 음악 시작
 };
 window.onkeyup = (e) => keys[e.code] = false;
-const keys = {};
 
-function attack() {
-    if(player.isAttacking) return;
-    player.isAttacking = true;
-    
-    // 잔상 생성
-    afterimages.push({x: player.x, y: player.y, opacity: 0.8, life: 15, dir: player.dir});
+// --- 유틸리티 함수 ---
+function showMsg(text, color = '#fff') {
+    msgBox.innerText = text;
+    msgBox.style.color = color;
+    msgBox.style.display = 'block';
+    setTimeout(() => msgBox.style.display = 'none', 1500);
+}
 
+// --- 핵심 기능 1: 자동 공격 시스템 ---
+function autoAttack() {
+    autoRotation += 0.15;
+    // 플레이어 주변에 잔상 생성
+    afterimages.push({
+        x: player.x + Math.cos(autoRotation) * 80,
+        y: player.y + Math.sin(autoRotation) * 80,
+        opacity: 0.8, life: 10, color: coreColor
+    });
+
+    // 주변 적 타격
     enemies.forEach((en, i) => {
-        const dist = player.dir === 1 ? (en.x - player.x) : (player.x - en.x);
-        if (dist > 0 && dist < 160 && Math.abs(player.y - en.y) < 100) {
-            en.hp -= player.atk;
+        const dist = Math.sqrt((player.x - en.x)**2 + (player.y - en.y)**2);
+        if(dist < 150) {
+            en.hp -= player.atk * 0.1;
             if(en.hp <= 0) {
+                dropItem(en.x, en.y);
                 enemies.splice(i, 1);
-                gainExp(35);
-                score += 100;
-                scoreLabel.innerText = `SCORE: ${score}`;
+                score += 50;
+                gainExp(20);
             }
         }
     });
-    setTimeout(() => player.isAttacking = false, 200);
 }
 
-function gainExp(amount) {
-    exp += amount;
-    if(exp >= 100) {
-        level++;
-        exp = 0;
-        player.atk += 15; // 레벨업 시 공격력 증가
-        player.hp = player.maxHp; // 체력 회복
-        statsLabel.innerText = `LV. ${level} AETHER KNIGHT (UPGRADED)`;
-        statsLabel.style.color = "#0f0";
-        setTimeout(()=> statsLabel.style.color = "#0ff", 1000);
+// --- 핵심 기능 2: 랜덤 아이템 드랍 ---
+function dropItem(x, y) {
+    const rand = Math.random();
+    let type = '';
+    if(rand < 0.05) type = 'CORE';      // 전설의 코어 (5%)
+    else if(rand < 0.2) type = 'SKILL'; // 번개 스킬 (15%)
+    else if(rand < 0.4) type = 'HEAL';  // 체력 회복 (20%)
+
+    if(type) items.push({ x, y: floorY - 30, w: 30, h: 30, type });
+}
+
+function useItem(item) {
+    if(item.type === 'CORE') {
+        coreActive = true;
+        coreColor = '#f0f'; // 보라색 각성
+        player.atk *= 2;
+        showMsg("전설의 코어 획득: 각성!", "#f0f");
+    } else if(item.type === 'SKILL') {
+        showMsg("에테르 썬더!", "#ff0");
+        enemies.forEach(en => en.hp = 0); // 화면 전체 전멸
+    } else if(item.type === 'HEAL') {
+        player.hp = Math.min(player.maxHp, player.hp + 30);
+        showMsg("체력 회복", "#0f0");
     }
-    expFill.style.width = exp + "%";
 }
 
+// --- 핵심 기능 3: 하늘에서 내리는 번개 ---
+function spawnLightning() {
+    const lx = Math.random() * canvas.width;
+    lightnings.push({ x: lx, y: 0, w: 20, h: canvas.height, life: 30 });
+}
+setInterval(() => { if(!isGameOver) spawnLightning(); }, 3000);
+
+// --- 핵심 기능 4: 보스전 ---
 function spawnEnemy() {
     if(isGameOver) return;
-    const side = Math.random() > 0.5 ? -100 : canvas.width + 100;
+    const isBoss = (level % 10 === 0 && enemies.filter(e=>e.isBoss).length === 0);
+    
     enemies.push({
-        x: side, y: floorY - 90, w: 70, h: 90, 
-        hp: 50 + (level * 10), 
-        speed: 2 + (level * 0.5) // 레벨 오를수록 적이 빨라짐
+        x: Math.random() > 0.5 ? -100 : canvas.width + 100,
+        y: isBoss ? floorY - 200 : floorY - 80,
+        w: isBoss ? 150 : 60, h: isBoss ? 200 : 80,
+        hp: isBoss ? 1000 : 50 + (level * 10),
+        speed: isBoss ? 1.5 : 2 + (level * 0.3),
+        isBoss: isBoss
     });
+    if(isBoss) showMsg("경고: 보스 출현!", "#f05");
 }
-setInterval(spawnEnemy, 2000 - (level * 100)); // 레벨 오를수록 적 소환 주기가 빨라짐
+setInterval(spawnEnemy, 2500);
 
+function gainExp(amt) {
+    exp += amt;
+    if(exp >= 100) { level++; exp = 0; player.atk += 10; statsLabel.innerText = `LV.${level} 에테르 기사`; }
+}
+
+// --- 엔진 업데이트 ---
 function update() {
     if(isGameOver) return;
 
@@ -129,22 +184,40 @@ function update() {
     else player.vx *= 0.8;
 
     if(keys['Space'] && player.grounded) { player.vy = -18; player.grounded = false; }
-
-    player.vy += 0.8;
-    player.x += player.vx;
-    player.y += player.vy;
+    player.vy += 0.8; player.x += player.vx; player.y += player.vy;
 
     // 화면 제한
     if(player.x < 0) player.x = 0;
     if(player.x > canvas.width - player.w) player.x = canvas.width - player.w;
-
     if(player.y > floorY - player.h) { player.y = floorY - player.h; player.vy = 0; player.grounded = true; }
+
+    autoAttack();
+
+    // 번개 충돌 판정
+    lightnings.forEach((ln, i) => {
+        ln.life--;
+        if(ln.life > 0 && ln.life < 10) { // 번개가 떨어지는 순간 판정
+            if(player.x < ln.x + ln.w && player.x + player.w > ln.x) {
+                player.hp -= 0.5;
+                if(player.hp <= 0) endGame();
+            }
+        }
+        if(ln.life <= 0) lightnings.splice(i, 1);
+    });
+
+    // 아이템 획득
+    items.forEach((it, i) => {
+        if(Math.abs(player.x - it.x) < 50 && Math.abs(player.y - it.y) < 100) {
+            useItem(it);
+            items.splice(i, 1);
+        }
+    });
 
     // 적 추적 및 데미지
     enemies.forEach(en => {
         if(en.x < player.x) en.x += en.speed; else en.x -= en.speed;
         if(Math.abs(player.x - en.x) < 40 && Math.abs(player.y - en.y) < 50) {
-            player.hp -= 0.3; // 적과 닿으면 체력 감소
+            player.hp -= en.isBoss ? 0.5 : 0.2;
             hpFill.style.width = Math.max(0, player.hp) + "%";
             if(player.hp <= 0) endGame();
         }
@@ -156,42 +229,53 @@ function update() {
 function endGame() {
     isGameOver = true;
     overlay.style.display = "flex";
-    finalResult.innerText = `최종 점수: ${score} | 도달 레벨: ${level}`;
+    bgm.pause();
+    document.getElementById('final-result').innerText = `최종 점수: ${score} | 레벨: ${level}`;
 }
 
+// --- 그리기 ---
 function draw() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    
+
     // 배경
-    if (img_bg.complete && img_bg.width > 0) ctx.drawImage(img_bg, 0, 0, canvas.width, canvas.height);
-    else {
-        ctx.fillStyle = "#020205"; ctx.fillRect(0,0,canvas.width,canvas.height);
-        ctx.strokeStyle = "rgba(0,255,255,0.1)";
-        for(let i=0; i<canvas.width; i+=100) { ctx.beginPath(); ctx.moveTo(i,0); ctx.lineTo(i,canvas.height); ctx.stroke(); }
-    }
+    if(img.bg.complete && img.bg.width > 0) ctx.drawImage(img.bg, 0, 0, canvas.width, canvas.height);
+    else { ctx.fillStyle = '#050510'; ctx.fillRect(0,0,canvas.width,canvas.height); }
+
+    // 번개 예고 및 발생
+    lightnings.forEach(ln => {
+        ctx.fillStyle = ln.life > 10 ? 'rgba(255,255,0,0.2)' : 'rgba(255,255,255,0.9)';
+        ctx.fillRect(ln.x, 0, ln.w, canvas.height);
+    });
 
     // 바닥
     ctx.strokeStyle = '#0ff'; ctx.lineWidth = 4;
     ctx.beginPath(); ctx.moveTo(0, floorY); ctx.lineTo(canvas.width, floorY); ctx.stroke();
 
-    // 몬스터
+    // 아이템
+    items.forEach(it => {
+        ctx.fillStyle = it.type === 'CORE' ? '#f0f' : (it.type === 'SKILL' ? '#ff0' : '#0f0');
+        ctx.fillRect(it.x, it.y, it.w, it.h);
+    });
+
+    // 잔상(자동 공격)
+    afterimages.forEach(img => {
+        ctx.globalAlpha = img.opacity; ctx.fillStyle = img.color || '#0ff';
+        ctx.fillRect(img.x, img.y, 10, 10);
+    });
+    ctx.globalAlpha = 1;
+
+    // 적/보스
     enemies.forEach(en => {
-        if(img_enemy.complete && img_enemy.width > 0) ctx.drawImage(img_enemy, en.x, en.y, en.w, en.h);
-        else { ctx.fillStyle = '#f05'; ctx.fillRect(en.x, en.y, en.w, en.h); }
+        const image = en.isBoss ? img.b : img.e;
+        if(image.complete && image.width > 0) ctx.drawImage(image, en.x, en.y, en.w, en.h);
+        else { ctx.fillStyle = en.isBoss ? '#f00' : '#f05'; ctx.fillRect(en.x, en.y, en.w, en.h); }
     });
 
     // 플레이어
     ctx.save();
-    if(player.dir === -1) { ctx.translate(player.x + player.w, player.y); ctx.scale(-1, 1); ctx.drawImage(img_player, 0, 0, player.w, player.h); }
-    else { ctx.drawImage(img_player, player.x, player.y, player.w, player.h); }
+    if(player.dir === -1) { ctx.translate(player.x + player.w, player.y); ctx.scale(-1, 1); ctx.drawImage(img.p, 0, 0, player.w, player.h); }
+    else { ctx.drawImage(img.p, player.x, player.y, player.w, player.h); }
     ctx.restore();
-
-    // 공격 이펙트
-    if(player.isAttacking) {
-        ctx.fillStyle = "rgba(255, 255, 255, 0.8)";
-        const sx = player.dir === 1 ? player.x + player.w : player.x - 100;
-        ctx.fillRect(sx, player.y + 40, 100, 10);
-    }
 }
 
 function loop() { update(); draw(); requestAnimationFrame(loop); }
