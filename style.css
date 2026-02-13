@@ -1,0 +1,104 @@
+/* Reset 및 기본 */
+body {
+  margin: 0; padding: 0;
+  background: #000;
+  font-family: 'Orbitron', sans-serif;
+  color: #0ff;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+  overflow: hidden;
+  -webkit-user-select: none;  /* 모바일에서 텍스트 선택 방지 */
+  user-select: none;
+}
+
+/* 게임 뷰포트 - 화면 크기 최대 640x480, 비율 유지 */
+#game-container {
+  position: relative;
+  width: 90vw;      /* 화면 너비의 90% */
+  max-width: 640px;
+  height: 67.5vw;   /* 640x480 비율 유지 */
+  max-height: 480px;
+  background: radial-gradient(circle at center, #050026, #000);
+  border: 2px solid #0ff;
+  box-shadow: 0 0 20px #0ff;
+  overflow: hidden;
+}
+
+/* 캐릭터 및 몬스터 크기 비율에 맞춰 수정 */
+#player, #monster {
+  position: absolute;
+  width: 6.25vw;    /* 40px 상대값 (640기준) */
+  max-width: 40px;
+  height: 6.25vw;
+  max-height: 40px;
+  border-radius: 4px;
+  box-shadow: 0 0 8px #0ff;
+}
+
+#player {
+  background: #0ff;
+}
+
+#monster {
+  background: #f0f;
+  box-shadow: 0 0 15px #f0f;
+}
+
+/* UI 점수 표시 */
+#ui {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  padding: 10px;
+  font-size: 4vw;  /* 반응형 */
+  text-align: left;
+}
+
+/* 터치 컨트롤 영역 - 모바일 전용 */
+#touch-controls {
+  position: fixed;
+  bottom: 5vw;
+  left: 5vw;
+  width: 90vw;
+  max-width: 640px;
+  height: 100px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  pointer-events: auto;
+  user-select: none;
+}
+
+/* 방향키 버튼 스타일 */
+.btn-touch {
+  width: 50px;
+  height: 50px;
+  background: #0ff;
+  color: #000;
+  font-weight: bold;
+  font-size: 24px;
+  border-radius: 8px;
+  box-shadow: 0 0 15px #0ff;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  user-select: none;
+  touch-action: manipulation;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.btn-touch:active {
+  background: #0aa;
+}
+
+.attack {
+  width: 80px;
+  background: #f0f;
+  color: #000;
+  box-shadow: 0 0 20px #f0f;
+  font-size: 18px;
+}
