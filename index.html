@@ -7,23 +7,24 @@
         body { margin: 0; overflow: hidden; background: #000; font-family: 'Arial', sans-serif; }
         canvas { display: block; background: #eee; }
         
-        /* UI 스타일 - 시인성 강화 */
+        /* UI 스타일 - 좌측 상단으로 원위치 */
         #ui {
             position: absolute; top: 20px; left: 20px;
             color: #1a1a1a; font-weight: bold; font-size: 20px;
             text-shadow: 1px 1px 2px white; pointer-events: none;
+            z-index: 10;
         }
-        #hp-bar-container {
-            position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%);
-            width: 300px; height: 25px; background: rgba(0,0,0,0.5); border: 3px solid #1a1a1a;
+        #hp-container {
+            margin-top: 10px; width: 250px; height: 20px; 
+            background: rgba(0,0,0,0.5); border: 2px solid #1a1a1a;
         }
-        #hp-bar { width: 100%; height: 100%; background: #ff3333; transition: width 0.2s; }
+        #hp-bar { width: 100%; height: 100%; background: #ff3333; transition: width 0.1s; }
         
         /* 메뉴 스타일 */
         #menu {
             position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
             background: rgba(255,255,255,0.9); padding: 30px; border-radius: 15px;
-            text-align: center; display: none; border: 5px solid #1a1a1a;
+            text-align: center; display: none; border: 5px solid #1a1a1a; z-index: 20;
         }
         button {
             display: block; width: 200px; margin: 10px auto; padding: 10px;
@@ -37,9 +38,8 @@
 <div id="ui">
     <div id="stats">LV.1 에테르 기사</div>
     <div id="gold">GOLD: 0</div>
+    <div id="hp-container"><div id="hp-bar"></div></div>
 </div>
-
-<div id="hp-bar-container"><div id="hp-bar"></div></div>
 
 <div id="menu">
     <h2 id="menu-title">일시정지</h2>
@@ -57,7 +57,6 @@ const ctx = canvas.getContext('2d');
 canvas.width = window.innerWidth;
 canvas.height = window.innerHeight;
 
-// --- 리소스 로드 ---
 const images = {};
 const imgNames = ['player', 'enemy', 'boss', 'background', 'item_core', 'item_thunder', 'item_heal', 'lightning', 'aura'];
 imgNames.forEach(name => {
@@ -65,25 +64,23 @@ imgNames.forEach(name => {
     images[name].src = `assets/${name}.png`;
 });
 
-// --- 게임 변수 ---
 let level = 1, exp = 0, gold = 0, isPaused = false;
 const floorY = canvas.height - 100;
+const keys = {}; // 키 입력 상태 저장
 
 const player = {
     x: 100, y: floorY - 80, w: 80, h: 80,
-    hp: 100, maxHp: 100, baseAtk: 40,
+    hp: 100, maxHp: 100, baseAtk: 40, speed: 7,
     isOverdrive: false, overdriveTime: 0,
-    auras: [] // 잔상(칼날) 데이터
+    auras: []
 };
 
-// 초기 잔상 3개 생성
 for(let i=0; i<3; i++) {
     player.auras.push({ angle: (Math.PI*2/3)*i, dist: 120, speed: 0.08 });
 }
 
 let enemies = [], items = [], lightnings = [], particles = [], boss = null;
 
-// --- 유틸리티 ---
 function checkCollision(a, b) {
     return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
 }
@@ -94,31 +91,18 @@ function createParticles(x, y, color) {
     }
 }
 
-// --- 핵심 로직 ---
-function spawnEnemy() {
-    if (boss) return;
-    enemies.push({
-        x: canvas.width + 100, y: floorY - 60, w: 60, h: 60,
-        hp: 50 + (level * 5), speed: 3 + (level * 0.1)
-    });
-}
-
-function spawnBoss() {
-    boss = {
-        x: canvas.width + 200, y: floorY - 200, w: 200, h: 200,
-        hp: 1000 + (level * 100), maxHp: 1000 + (level * 100), speed: 1.5
-    };
-}
-
-function spawnLightning() {
-    for(let i=0; i<10; i++) {
-        lightnings.push({ x: Math.random()*canvas.width, y: 0, w: 100, h: canvas.height, life: 40 });
+// 키보드 이벤트 리스너 복구
+window.addEventListener('keydown', e => {
+    keys[e.code] = true;
+    if(e.code === 'KeyP') {
+        isPaused = !isPaused;
+        document.getElementById('menu').style.display = isPaused ? 'block' : 'none';
     }
-}
+});
+window.addEventListener('keyup', e => keys[e.code] = false);
 
-// --- 저장/불러오기 시스템 ---
 function saveGame() {
-    const saveData = { level, exp, gold, hp: player.hp, baseAtk: player.baseAtk };
+    const saveData = { level, exp, gold, hp: player.hp, baseAtk: player.baseAtk, x: player.x };
     localStorage.setItem('blade_save_data', JSON.stringify(saveData));
     alert("현재 진행 상태가 저장되었습니다!");
 }
@@ -127,12 +111,10 @@ function loadGame() {
     const data = JSON.parse(localStorage.getItem('blade_save_data'));
     if (data) {
         level = data.level; exp = data.exp; gold = data.gold;
-        player.hp = data.hp; player.baseAtk = data.baseAtk;
+        player.hp = data.hp; player.baseAtk = data.baseAtk; player.x = data.x || 100;
         resumeGame();
         alert("성공적으로 불러왔습니다!");
-    } else {
-        alert("저장된 데이터가 없습니다.");
-    }
+    } else { alert("저장된 데이터가 없습니다."); }
 }
 
 function resumeGame() {
@@ -140,35 +122,30 @@ function resumeGame() {
     document.getElementById('menu').style.display = 'none';
 }
 
-window.addEventListener('keydown', (e) => {
-    if(e.code === 'KeyP') {
-        isPaused = !isPaused;
-        document.getElementById('menu').style.display = isPaused ? 'block' : 'none';
-    }
-});
-
-// --- 메인 루프 ---
 function update() {
     if (isPaused) return;
 
-    // 1. 레벨업 체크
+    // --- [1번째 해결: 캐릭터 이동 로직] ---
+    if (keys['ArrowLeft'] || keys['KeyA']) player.x -= player.speed;
+    if (keys['ArrowRight'] || keys['KeyD']) player.x += player.speed;
+    // 화면 밖으로 나가지 않게 제한
+    player.x = Math.max(0, Math.min(canvas.width - player.w, player.x));
+
     if(exp >= 100) {
         level++; exp = 0; player.baseAtk += 15;
-        player.hp = Math.min(player.hp + 20, 100); // 레벨업 시 체력 보너스
+        player.hp = Math.min(player.hp + 20, 100);
         if(level % 10 === 0) spawnBoss();
         document.getElementById('stats').innerText = `LV.${level} 에테르 기사`;
     }
 
-    // 2. 오버드라이브(각성) 체크
     if(player.isOverdrive) {
         player.overdriveTime--;
         if(player.overdriveTime <= 0) player.isOverdrive = false;
     }
 
-    // 3. 적 업데이트 및 잔상 충돌
     enemies.forEach((en, i) => {
         en.x -= en.speed;
-        if(checkCollision(player, en)) player.hp -= 0.5; // 일반몹 데미지
+        if(checkCollision(player, en)) player.hp -= 0.5;
 
         player.auras.forEach(au => {
             const auX = player.x + player.w/2 + Math.cos(au.angle) * au.dist;
@@ -181,15 +158,12 @@ function update() {
         if(en.hp <= 0) { enemies.splice(i, 1); exp += 10; gold += 20; }
     });
 
-    // 4. 보스 업데이트 (버그 수정됨)
     if(boss) {
         if(boss.x > canvas.width - 300) boss.x -= boss.speed;
-        if(checkCollision(player, boss)) player.hp -= 1.5; // 보스 접촉 데미지
-
+        if(checkCollision(player, boss)) player.hp -= 1.5;
         player.auras.forEach(au => {
             const auX = player.x + player.w/2 + Math.cos(au.angle) * au.dist;
             const auY = player.y + player.h/2 + Math.sin(au.angle) * au.dist;
-            // 보스의 히트박스를 이미지 크기에 맞게 확실히 판정
             if(auX > boss.x && auX < boss.x + boss.w && auY > boss.y && auY < boss.y + boss.h) {
                 boss.hp -= (player.baseAtk + (player.isOverdrive ? 100 : 0));
                 createParticles(auX, auY, '#ff00ff');
@@ -198,7 +172,6 @@ function update() {
         if(boss.hp <= 0) { boss = null; exp += 100; gold += 500; }
     }
 
-    // 5. 번개 및 아이템 로직 (생략된 기존 충돌 로직 포함)
     lightnings.forEach((ln, i) => {
         ln.life--;
         if(ln.life < 15 && ln.life > 0) {
@@ -210,16 +183,14 @@ function update() {
     items.forEach((it, i) => {
         if(checkCollision(player, it)) {
             if(it.type === 'CORE') { player.isOverdrive = true; player.overdriveTime = 600; }
-            if(it.type === 'THUNDER') enemies = []; 
+            if(it.type === 'THUNDER') { enemies = []; createParticles(canvas.width/2, canvas.height/2, 'yellow'); }
             if(it.type === 'HEAL') player.hp = Math.min(player.hp + 60, 100);
             items.splice(i, 1);
         }
     });
 
-    // 파티클
     particles.forEach((p, i) => { p.x += p.vx; p.y += p.vy; p.life--; if(p.life <= 0) particles.splice(i, 1); });
 
-    // UI 갱신
     document.getElementById('hp-bar').style.width = player.hp + "%";
     document.getElementById('gold').innerText = `GOLD: ${gold}`;
     
@@ -228,23 +199,17 @@ function update() {
 
 function draw() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    
-    // 배경
-    ctx.drawImage(images.background, 0, 0, canvas.width, canvas.height);
+    if(images.background.complete) ctx.drawImage(images.background, 0, 0, canvas.width, canvas.height);
 
-    // 아이템 & 적
     items.forEach(it => ctx.drawImage(images[`item_${it.type.toLowerCase()}`], it.x, it.y, it.w, it.h));
     enemies.forEach(en => ctx.drawImage(images.enemy, en.x, en.y, en.w, en.h));
     if(boss) {
         ctx.drawImage(images.boss, boss.x, boss.y, boss.w, boss.h);
-        // 보스 체력바
         ctx.fillStyle = 'red'; ctx.fillRect(boss.x, boss.y - 20, (boss.hp/boss.maxHp)*boss.w, 10);
     }
 
-    // 번개
     lightnings.forEach(ln => { if(ln.life < 15) ctx.drawImage(images.lightning, ln.x, ln.y, ln.w, ln.h); });
 
-    // 플레이어 & 잔상(이미지)
     ctx.drawImage(images.player, player.x, player.y, player.w, player.h);
     player.auras.forEach(au => {
         const auX = player.x + player.w/2 + Math.cos(au.angle) * au.dist;
@@ -252,7 +217,6 @@ function draw() {
         ctx.save();
         ctx.translate(auX, auY);
         ctx.rotate(au.angle + Math.PI/2);
-        // 각성 시 핑크, 평소엔 푸른 잔상 이미지 효과 (GlobalCompositeOperation 활용)
         if(player.isOverdrive) ctx.filter = "hue-rotate(280deg) saturate(2)"; 
         ctx.drawImage(images.aura, -30, -30, 60, 60);
         ctx.restore();
@@ -262,13 +226,11 @@ function draw() {
     particles.forEach(p => { ctx.fillStyle = p.color; ctx.fillRect(p.x, p.y, 4, 4); });
 }
 
-function loop() {
-    update();
-    draw();
-    requestAnimationFrame(loop);
-}
+function loop() { update(); draw(); requestAnimationFrame(loop); }
+function spawnEnemy() { if (!boss && !isPaused) enemies.push({ x: canvas.width + 100, y: floorY - 60, w: 60, h: 60, hp: 50 + (level * 5), speed: 3 + (level * 0.1) }); }
+function spawnBoss() { boss = { x: canvas.width + 200, y: floorY - 200, w: 200, h: 200, hp: 1000 + (level * 100), maxHp: 1000 + (level * 100), speed: 1.5 }; }
+function spawnLightning() { if(!isPaused) for(let i=0; i<10; i++) lightnings.push({ x: Math.random()*canvas.width, y: 0, w: 100, h: canvas.height, life: 40 }); }
 
-// 타이머 설정
 setInterval(spawnEnemy, 2000);
 setInterval(spawnLightning, 5000);
 setInterval(() => {
