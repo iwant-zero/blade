@@ -37,11 +37,31 @@ canvas {
   border: 2px solid #1a1a1a;
   margin: 5px 0;
 }
-
 .bar-container.exp { height: 8px; }
 
 #hp-fill { width: 100%; height: 100%; background: #cc0033; transition: 0.08s; }
 #exp-fill { width: 0%; height: 100%; background: #008822; transition: 0.2s; }
+
+/* ✅ Pause button */
+#pause-btn{
+  position: absolute;
+  top: 18px;
+  right: 18px;
+  z-index: 20;
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
+  border: 2px solid rgba(255,255,255,0.9);
+  background: rgba(0,0,0,0.35);
+  color: #fff;
+  font-size: 22px;
+  font-weight: 900;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+#pause-btn:active{
+  transform: scale(0.98);
+}
 
 /* overlays */
 #overlay, #pause-menu {
@@ -56,6 +76,22 @@ canvas {
   z-index: 100;
 }
 
+.panel-title{
+  font-size: 58px;
+  margin: 0 0 10px;
+}
+.panel-sub{
+  opacity: 0.85;
+  font-size: 16px;
+  margin-bottom: 18px;
+}
+.panel-buttons{
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
 .menu-btn {
   padding: 15px 40px;
   background: #1a1a1a;
@@ -63,7 +99,7 @@ canvas {
   font-weight: bold;
   cursor: pointer;
   font-size: 20px;
-  margin: 10px;
+  margin: 6px;
   color: #fff;
 }
 
@@ -90,7 +126,7 @@ canvas {
 #debug {
   position: absolute;
   right: 12px;
-  top: 12px;
+  top: 80px;
   max-width: min(560px, 94vw);
   background: rgba(0,0,0,0.72);
   color: #fff;
