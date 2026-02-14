@@ -1,3 +1,8 @@
+:root{
+  --vh: 1vh;
+  --ui-scale: 1;
+}
+
 html, body {
   width: 100%;
   height: 100%;
@@ -7,23 +12,27 @@ html, body {
   font-family: 'Arial Black', sans-serif;
 }
 
+/* ✅ 모바일 주소창(툴바)로 100vh 튀는 문제 해결 */
 canvas {
   display: block;
   width: 100vw;
-  height: 100vh;
+  height: calc(var(--vh) * 100);
+  touch-action: none;
 }
 
 /* HUD */
 #ui {
   position: absolute;
-  top: 20px;
-  left: 20px;
+  top: calc(14px + env(safe-area-inset-top));
+  left: calc(14px + env(safe-area-inset-left));
   color: #1a1a1a;
   pointer-events: none;
   z-index: 10;
   background: rgba(255, 255, 255, 0.4);
   padding: 15px;
   border-radius: 10px;
+  transform-origin: top left;
+  transform: scale(var(--ui-scale));
 }
 
 #stats { font-size: 24px; font-weight: 900; margin-bottom: 5px; }
@@ -61,9 +70,9 @@ canvas {
 /* Pause button */
 #pause-btn{
   position: absolute;
-  top: 18px;
-  right: 18px;
-  z-index: 20;
+  top: calc(14px + env(safe-area-inset-top));
+  right: calc(14px + env(safe-area-inset-right));
+  z-index: 40;
   width: 52px;
   height: 52px;
   border-radius: 14px;
@@ -76,6 +85,52 @@ canvas {
   -webkit-tap-highlight-color: transparent;
 }
 #pause-btn:active{ transform: scale(0.98); }
+
+/* ✅ MOBILE TOUCH CONTROLS */
+#touch{
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 35;
+  padding:
+    14px
+    calc(14px + env(safe-area-inset-right))
+    calc(14px + env(safe-area-inset-bottom))
+    calc(14px + env(safe-area-inset-left));
+  display: none; /* JS에서 PLAY일 때만 켬 */
+  align-items: flex-end;
+  justify-content: space-between;
+  pointer-events: none; /* 버튼만 살림 */
+}
+
+#touch .touch-left, #touch .touch-right{
+  display:flex;
+  gap: 12px;
+  pointer-events: auto;
+}
+
+.tbtn{
+  width: 66px;
+  height: 66px;
+  border-radius: 18px;
+  border: 2px solid rgba(255,255,255,0.85);
+  background: rgba(0,0,0,0.35);
+  color: #fff;
+  font-weight: 900;
+  font-size: 24px;
+  cursor: pointer;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: none;
+}
+.tbtn.big{
+  width: 84px;
+  height: 84px;
+  border-radius: 22px;
+  font-size: 28px;
+}
+.tbtn:active{ transform: scale(0.98); }
 
 /* Overlays */
 #title-menu, #pause-menu, #reward-menu, #overlay {
@@ -332,4 +387,17 @@ canvas {
   z-index: 999;
   white-space: pre-wrap;
   display: none;
+}
+
+/* ✅ 모바일 HUD 자동 축소 */
+@media (max-width: 520px){
+  :root{ --ui-scale: 0.78; }
+  #ui{ padding: 10px; }
+  #stats{ font-size: 18px; }
+  #score{ font-size: 20px; }
+  .bar-container{ width: 220px; height: 14px; }
+  .bar-container.exp{ height: 7px; }
+  #pause-btn{ width: 46px; height: 46px; border-radius: 12px; }
+  .tbtn{ width: 62px; height: 62px; border-radius: 16px; }
+  .tbtn.big{ width: 80px; height: 80px; border-radius: 20px; }
 }
