@@ -179,6 +179,12 @@
     let W = 0, H = 0, DPR = 1;
     let floorY = 0;
 
+    const player = {
+      x: 0, y: 0, w: 80, h: 110,
+      vx: 0, vy: 0, grounded: false, dir: 1,
+      hp: 100, maxHp: 100, baseAtk: 45
+    };
+
     function resize() {
       DPR = Math.max(1, window.devicePixelRatio || 1);
       W = Math.max(320, window.innerWidth);
@@ -222,25 +228,19 @@
     // ========= GAME STATE =========
     let state = "TITLE"; // "TITLE" | "PLAY" | "PAUSE" | "REWARD" | "GAMEOVER"
 
-    // ✅ 플레이 중 타이틀을 열었는지(=돌아갈 수 있는지)
+    // TITLE을 플레이 중 열었는지 여부
     let titleFromGame = false;
-    let titleReturnState = "PAUSE"; // 기본은 pause로 복귀
+    let titleReturnState = "PAUSE";
 
     let score = 0;
     let level = 1;
-    let exp = 0; // 0~100
+    let exp = 0;
     let wave = 1;
 
     let coreStack = 0;
     let awakeningTimeLeft = 0;
     let coreColor = "#0ff";
     let invulnTime = 0;
-
-    const player = {
-      x: 0, y: 0, w: 80, h: 110,
-      vx: 0, vy: 0, grounded: false, dir: 1,
-      hp: 100, maxHp: 100, baseAtk: 45
-    };
 
     let enemies = [];
     let items = [];
@@ -330,8 +330,8 @@
 
       if (overNote) {
         if (!hasAny) overNote.textContent = "저장 데이터가 없습니다. (SAVE 또는 보스 체크포인트 저장 필요)";
-        else if (token === 0) overNote.textContent = "이어하기 토큰이 0입니다. (보스 체크포인트/수동 저장으로 충전)";
-        else overNote.textContent = "아래에서 불러올 슬롯을 선택하세요. (이어하기 1회 소모)";
+        else if (token === 0) overNote.textContent = "이어하기 토큰이 0입니다. (저장으로 다시 충전)";
+        else overNote.textContent = "불러올 슬롯을 선택하세요. (이어하기 1회 소모)";
       }
 
       for (let s = 1; s <= SLOT_COUNT; s++) {
@@ -358,6 +358,12 @@
     }
 
     function setState(next) {
+      // ✅ 보험: 게임오버로 들어가면 TITLE 복귀 플래그를 아예 끊어버림
+      if (next === "GAMEOVER") {
+        titleFromGame = false;
+        titleReturnState = "PAUSE";
+      }
+
       state = next;
 
       showOverlay(titleMenu, state === "TITLE");
@@ -398,7 +404,7 @@
 
       const ok = writeSave(s, data);
       if (ok) {
-        setContinueToken(1);
+        setContinueToken(1); // 저장이 있으면 토큰 충전
         showItemNotice(`${reasonText} (SLOT ${s})`);
       } else {
         showItemNotice("SAVE FAILED");
@@ -443,14 +449,13 @@
       if (fromDeath) {
         const token = getContinueToken();
         if (token !== 1) { showItemNotice("NO CONTINUE"); return false; }
-        setContinueToken(0);
+        setContinueToken(0);   // ✅ 1회 소모
         setDeathPending(0);
       }
 
       setActiveSlot(s);
       applySaveData(data);
 
-      // ✅ 로드하면 “플레이로 복귀”이므로 titleFromGame 상태는 해제
       titleFromGame = false;
       titleReturnState = "PAUSE";
 
@@ -482,7 +487,6 @@
       player.x = W * 0.5 - player.w * 0.5;
       player.y = floorY - player.h;
 
-      // 새게임 진입은 “진짜 플레이”이므로 titleFromGame 해제
       titleFromGame = false;
       titleReturnState = "PAUSE";
 
@@ -491,7 +495,6 @@
       showItemNotice(`NEW GAME (SLOT ${s})`);
     }
 
-    // ✅ 처음 타이틀(게임 시작 화면)로 돌아갈 때
     function toTitle() {
       keysReset();
       titleFromGame = false;
@@ -499,25 +502,30 @@
       setState("TITLE");
     }
 
-    // ✅ 플레이 중(일시정지에서) 타이틀 메뉴를 “저장 확인용”으로 열 때
     function openTitleFromPause() {
       titleFromGame = true;
       titleReturnState = "PAUSE";
       setState("TITLE");
     }
 
-    // ✅ 타이틀 메뉴에서 다시 게임으로 돌아가기
     function backToGame() {
       if (!titleFromGame) return;
       setState(titleReturnState || "PAUSE");
     }
 
+    // ✅✅✅ 여기 핵심: 죽으면 절대 TITLE로 자동 이동하지 않음
     function endGame() {
       setDeathPending(1);
+
+      // 보험(죽는 순간에 TITLE 관련 상태가 남아있어도 끊음)
       titleFromGame = false;
       titleReturnState = "PAUSE";
-      setState("GAMEOVER");
-      if (finalResult) finalResult.textContent = `SCORE: ${score} | LEVEL: ${level} | WAVE: ${wave}`;
+
+      setState("GAMEOVER"); // ✅ 무조건 GAMEOVER
+
+      if (finalResult) {
+        finalResult.textContent = `SCORE: ${score} | LEVEL: ${level} | WAVE: ${wave}`;
+      }
     }
 
     // ========= INPUT =========
@@ -533,7 +541,6 @@
 
     if (btnTitleBack) btnTitleBack.addEventListener("click", () => backToGame());
 
-    // Pause menu
     if (btnResume) btnResume.addEventListener("click", () => setState("PLAY"));
     if (btnSave) btnSave.addEventListener("click", () => saveToSlot(getActiveSlot(), "SAVED"));
     if (btnRestart) btnRestart.addEventListener("click", () => startNewGame(getActiveSlot()));
@@ -545,17 +552,19 @@
       b.addEventListener("click", () => setActiveSlot(s));
     }
 
-    // Title slot buttons
     for (let s = 1; s <= SLOT_COUNT; s++) {
       if (slotLoadBtn[s]) slotLoadBtn[s].addEventListener("click", () => {
         const fromDeath = (getDeathPending() === 1);
         loadFromSlot(s, fromDeath);
       });
       if (slotNewBtn[s]) slotNewBtn[s].addEventListener("click", () => startNewGame(s));
-      if (slotDelBtn[s]) slotDelBtn[s].addEventListener("click", () => { clearSave(s); showItemNotice(`DELETED SLOT ${s}`); renderAllMenus(); });
+      if (slotDelBtn[s]) slotDelBtn[s].addEventListener("click", () => {
+        clearSave(s);
+        showItemNotice(`DELETED SLOT ${s}`);
+        renderAllMenus();
+      });
     }
 
-    // Gameover
     if (btnRetry) btnRetry.addEventListener("click", () => startNewGame(getActiveSlot()));
     if (btnOverTitle) btnOverTitle.addEventListener("click", () => toTitle());
     for (let s = 1; s <= SLOT_COUNT; s++) {
@@ -567,7 +576,7 @@
     window.addEventListener("keydown", (e) => {
       if (["Space","ArrowUp","ArrowDown","ArrowLeft","ArrowRight"].includes(e.code)) e.preventDefault();
 
-      // ✅ TITLE에서도 “플레이 중 타이틀”이면 ESC/P로 복귀 가능
+      // TITLE에서: 플레이 중 열었던 TITLE이면 ESC/P로 복귀
       if (state === "TITLE") {
         if (titleFromGame && (e.code === "Escape" || e.code === "KeyP")) {
           e.preventDefault();
@@ -576,6 +585,7 @@
         return;
       }
 
+      // ✅ GAMEOVER/REWARD에서는 키로 상태가 바뀌지 않게 완전 차단
       if (state === "GAMEOVER" || state === "REWARD") return;
 
       if (e.code === "KeyP" || e.code === "Escape") {
@@ -672,7 +682,7 @@
       { id:"heal_full", name:"나노 리부트", desc:"HP 완전 회복 + 최대 HP +20", apply:()=>{ player.maxHp += 20; player.hp = player.maxHp; } },
       { id:"atk_up", name:"코어 튜닝", desc:"기본 공격력 +25", apply:()=>{ player.baseAtk += 25; } },
       { id:"core_stack", name:"에테르 코어 주입", desc:"CORE 스택 +1 & 오버드라이브 10초", apply:()=>{ coreStack += 1; awakeningTimeLeft = 10; coreColor="#f0f"; } },
-      { id:"thunder_burst", name:"에테르 썬더", desc:"현재 화면의 적에게 대미지 6000 (보스 제외)", apply:()=>{ enemies.forEach(e => { if(!e.isBoss) e.hp -= 6000; }); } },
+      { id:"thunder_burst", name:"에테르 썬더", desc:"현재 화면 적에게 대미지 6000 (보스 제외)", apply:()=>{ enemies.forEach(e => { if(!e.isBoss) e.hp -= 6000; }); } },
       { id:"shield", name:"위상 실드", desc:"3초간 무적(피격 무시)", apply:()=>{ invulnTime = Math.max(invulnTime, 3.0); } },
       { id:"maxhp_big", name:"강화 프레임", desc:"최대 HP +50 (즉시 30 회복)", apply:()=>{ player.maxHp += 50; player.hp = clamp(player.hp + 30, 1, player.maxHp); } }
     ];
@@ -710,7 +720,7 @@
       r.apply();
       invulnTime = Math.max(invulnTime, 1.0);
 
-      // ✅ 보스 클리어 직후(보상 선택 완료)만 자동 저장
+      // ✅ 보상 선택 완료 순간에만 자동 저장
       saveToSlot(getActiveSlot(), "CHECKPOINT");
 
       showItemNotice(`WAVE ${wave} START`);
@@ -845,7 +855,6 @@
       afterimages = afterimages.filter(a => a.life > 0);
 
       if (player.hp <= 0) endGame();
-
       syncHUD();
     }
 
