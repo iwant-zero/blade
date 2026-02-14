@@ -10,18 +10,10 @@
   <!-- HUD -->
   <div id="ui">
     <div id="stats">LV.1 에테르 기사</div>
-
-    <div class="bar-container">
-      <div id="hp-fill"></div>
-    </div>
-
+    <div class="bar-container"><div id="hp-fill"></div></div>
     <div id="awk-timer" style="display:none;">OVERDRIVE: 0.0s</div>
-
     <div id="score">SCORE: 0</div>
-
-    <div class="bar-container exp">
-      <div id="exp-fill"></div>
-    </div>
+    <div class="bar-container exp"><div id="exp-fill"></div></div>
   </div>
 
   <div id="item-msg"></div>
@@ -36,27 +28,68 @@
   <div id="title-menu" aria-hidden="true">
     <div class="panel">
       <div class="panel-title">BLADE</div>
-      <div class="panel-sub">하이비지블리티 · 자동전투</div>
+      <div class="panel-sub" id="title-sub">세이브 슬롯 3개 · 보스 클리어 체크포인트</div>
 
-      <div class="save-box" id="save-box" style="display:none;">
-        <div class="save-title">저장 데이터 발견</div>
-        <div class="save-meta" id="save-meta">-</div>
-      </div>
+      <div class="token-line" id="token-line-title">이어하기 토큰: -</div>
 
-      <div class="panel-buttons">
-        <button class="menu-btn" id="btn-title-resume" type="button" style="display:none;">저장 불러오기</button>
-        <button class="menu-btn" id="btn-title-new" type="button">새 게임</button>
-      </div>
+      <div class="slot-grid">
+        <!-- SLOT 1 -->
+        <div class="slot-card" id="slot-card-1">
+          <div class="slot-head">
+            <div class="slot-title">SLOT 1</div>
+            <div class="slot-badges">
+              <span class="badge" id="slot-badge-1">EMPTY</span>
+              <span class="badge active" id="slot-active-1" style="display:none;">ACTIVE</span>
+            </div>
+          </div>
+          <div class="slot-meta" id="slot-meta-1">-</div>
+          <div class="slot-actions">
+            <button class="menu-btn" id="slot-load-1" type="button">LOAD</button>
+            <button class="menu-btn" id="slot-new-1" type="button">NEW</button>
+            <button class="menu-btn ghost" id="slot-del-1" type="button">DELETE</button>
+          </div>
+        </div>
 
-      <div class="panel-buttons">
-        <button class="menu-btn ghost" id="btn-title-clear" type="button" style="display:none;">저장 삭제</button>
+        <!-- SLOT 2 -->
+        <div class="slot-card" id="slot-card-2">
+          <div class="slot-head">
+            <div class="slot-title">SLOT 2</div>
+            <div class="slot-badges">
+              <span class="badge" id="slot-badge-2">EMPTY</span>
+              <span class="badge active" id="slot-active-2" style="display:none;">ACTIVE</span>
+            </div>
+          </div>
+          <div class="slot-meta" id="slot-meta-2">-</div>
+          <div class="slot-actions">
+            <button class="menu-btn" id="slot-load-2" type="button">LOAD</button>
+            <button class="menu-btn" id="slot-new-2" type="button">NEW</button>
+            <button class="menu-btn ghost" id="slot-del-2" type="button">DELETE</button>
+          </div>
+        </div>
+
+        <!-- SLOT 3 -->
+        <div class="slot-card" id="slot-card-3">
+          <div class="slot-head">
+            <div class="slot-title">SLOT 3</div>
+            <div class="slot-badges">
+              <span class="badge" id="slot-badge-3">EMPTY</span>
+              <span class="badge active" id="slot-active-3" style="display:none;">ACTIVE</span>
+            </div>
+          </div>
+          <div class="slot-meta" id="slot-meta-3">-</div>
+          <div class="slot-actions">
+            <button class="menu-btn" id="slot-load-3" type="button">LOAD</button>
+            <button class="menu-btn" id="slot-new-3" type="button">NEW</button>
+            <button class="menu-btn ghost" id="slot-del-3" type="button">DELETE</button>
+          </div>
+        </div>
       </div>
 
       <div class="hint">
         조작: A/D 이동 · Space 점프 · P/ESC/⏸ 일시정지
       </div>
       <div class="hint dim">
-        권장: VSCode Live Server / 로컬 서버 실행
+        자동 저장은 “보스 클리어 후 보상 선택 완료” 순간에만 발생합니다. (그 외는 수동 저장)
       </div>
     </div>
   </div>
@@ -67,14 +100,28 @@
       <div class="panel-title">PAUSED</div>
       <div class="panel-sub">P / ESC / ⏸ : 토글</div>
 
-      <div class="panel-buttons">
-        <button class="menu-btn" id="btn-resume" type="button">재개</button>
-        <button class="menu-btn" id="btn-save" type="button">저장</button>
-        <button class="menu-btn" id="btn-restart" type="button">새 게임</button>
-        <button class="menu-btn ghost" id="btn-to-title" type="button">타이틀</button>
+      <div class="token-line" id="token-line-pause">이어하기 토큰: -</div>
+
+      <div class="slot-switch">
+        <div class="slot-switch-label">SAVE SLOT</div>
+        <div class="slot-switch-buttons">
+          <button class="slot-mini" id="mini-slot-1" type="button">1</button>
+          <button class="slot-mini" id="mini-slot-2" type="button">2</button>
+          <button class="slot-mini" id="mini-slot-3" type="button">3</button>
+        </div>
+        <div class="slot-switch-note" id="active-slot-note">ACTIVE: -</div>
       </div>
 
-      <div class="hint dim">자동 저장: 플레이 중 8초마다</div>
+      <div class="panel-buttons">
+        <button class="menu-btn" id="btn-resume" type="button">RESUME</button>
+        <button class="menu-btn" id="btn-save" type="button">SAVE</button>
+        <button class="menu-btn" id="btn-restart" type="button">NEW GAME</button>
+        <button class="menu-btn ghost" id="btn-to-title" type="button">TITLE</button>
+      </div>
+
+      <div class="hint dim">
+        수동 저장(SAVE) 또는 보스 클리어 체크포인트 저장이 있어야 “이어하기”가 가능합니다.
+      </div>
     </div>
   </div>
 
@@ -99,7 +146,9 @@
         </button>
       </div>
 
-      <div class="hint dim">보상 1개 선택 후 즉시 다음 웨이브 시작</div>
+      <div class="hint dim">
+        보상 1개 선택 완료 시, ACTIVE 슬롯에 “체크포인트 자동 저장”됩니다.
+      </div>
     </div>
   </div>
 
@@ -109,15 +158,22 @@
       <div class="panel-title">GAME OVER</div>
       <div id="final-result" class="final-result">-</div>
 
-      <div class="panel-buttons">
-        <!-- ✅ 저장 있으면 나타나는 버튼 -->
-        <button class="menu-btn" id="btn-over-load" type="button" style="display:none;">저장 불러오기</button>
-        <button class="menu-btn" id="btn-retry" type="button">새 게임</button>
-        <button class="menu-btn ghost" id="btn-over-title" type="button">타이틀</button>
+      <div class="token-line" id="token-line-over">이어하기 토큰: -</div>
+      <div class="over-note" id="over-note">-</div>
+
+      <div class="over-slot-grid">
+        <button class="menu-btn" id="go-load-1" type="button">LOAD SLOT 1</button>
+        <button class="menu-btn" id="go-load-2" type="button">LOAD SLOT 2</button>
+        <button class="menu-btn" id="go-load-3" type="button">LOAD SLOT 3</button>
+      </div>
+
+      <div class="panel-buttons" style="margin-top:12px;">
+        <button class="menu-btn" id="btn-retry" type="button">NEW GAME</button>
+        <button class="menu-btn ghost" id="btn-over-title" type="button">TITLE</button>
       </div>
 
       <div class="hint dim">
-        ※ 저장 불러오기는 “마지막 저장 시점”으로 돌아갑니다.
+        “이어하기”는 죽을 때 1회만 가능하며, 다음 체크포인트 저장으로 다시 충전됩니다.
       </div>
     </div>
   </div>
