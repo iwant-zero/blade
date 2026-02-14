@@ -10,7 +10,6 @@
       debugEl.style.display = "block";
       debugEl.textContent = msg;
     };
-    if (typeof window.__blade_show_debug === "function") window.__blade_show_debug = showDebug;
 
     try {
       // ===== DOM =====
@@ -113,12 +112,17 @@
       const btnRetry = document.getElementById("btn-retry");
       const btnOverTitle = document.getElementById("btn-over-title");
 
-      // ===== World (고정) =====
-      const WORLD_W = 960;
-      const WORLD_H = 540;
-      const floorY = WORLD_H - 100;
+      // ============================================================
+      // ✅ 1) "줌 아웃" : 월드 크기를 키워서(=보이는 공간↑) 회피 공간 확보
+      //    - 이전(960x540)보다 커짐 → 캐릭/번개가 상대적으로 작아짐
+      // ============================================================
+      const WORLD_W = 1280;
+      const WORLD_H = 720;
+      const floorY = WORLD_H - 120;
 
-      // ===== Render scaling (캔버스 실제 픽셀 기준: PC 먹통 방지 핵심) =====
+      // ============================================================
+      // ✅ Render scaling (캔버스 실제 픽셀 기준: PC/모바일 안정)
+      // ============================================================
       let scalePx = 1;
       let offPxX = 0;
       let offPxY = 0;
@@ -133,7 +137,6 @@
         canvas.width = Math.floor(sw * dpr);
         canvas.height = Math.floor(sh * dpr);
 
-        // ✅ canvas.width/height(실제 픽셀)로만 계산
         scalePx = Math.min(canvas.width / WORLD_W, canvas.height / WORLD_H);
         offPxX = Math.floor((canvas.width - WORLD_W * scalePx) * 0.5);
         offPxY = Math.floor((canvas.height - WORLD_H * scalePx) * 0.5);
@@ -213,6 +216,12 @@
       let score = 0, level = 1, exp = 0, wave = 1;
       let coreStack = 0, awakeningTimeLeft = 0, coreColor = "#0ff";
       let invulnTime = 0;
+
+      // ============================================================
+      // ✅ 월드가 커졌으니 이동속도도 살짝 올려서(회피 체감↑)
+      // ============================================================
+      const PLAYER_SPEED = 12;
+      const JUMP_POWER = 19;
 
       const player = {
         x: WORLD_W*0.5 - 40, y: floorY - 110, w: 80, h: 110,
@@ -553,7 +562,7 @@
 
       // ===== Spawn =====
       function enemySpawnMs(){ return clamp(2000 - (wave-1)*90, 850, 2000); }
-      function lightningSpawnMs(){ return clamp(5000 - (wave-1)*120, 3200, 5000); }
+      function lightningSpawnMs(){ return clamp(5200 - (wave-1)*120, 3400, 5200); }
 
       function scheduleEnemySpawn(){
         setTimeout(()=>{ try{ if(state==="PLAY") spawnEnemy(); } finally{ scheduleEnemySpawn(); } }, enemySpawnMs());
@@ -573,7 +582,7 @@
         const bs = 1 + (level/100);
         const bossHp = 2500 * Math.pow(1.7, level/10);
         enemies.push({
-          x: WORLD_W + 240,
+          x: WORLD_W + 260,
           y: floorY - (230*bs),
           w: 180*bs,
           h: 230*bs,
@@ -587,7 +596,7 @@
       function spawnMob(){
         const mhp = 100 + (level*30);
         enemies.push({
-          x: Math.random() > 0.5 ? -150 : WORLD_W + 150,
+          x: Math.random() > 0.5 ? -170 : WORLD_W + 170,
           y: floorY - 95,
           w: 75, h: 95,
           hp: mhp, maxHp: mhp,
@@ -603,9 +612,56 @@
         else spawnMob();
       }
 
+      // ============================================================
+      // ✅ 2) 번개를 "반드시 피할 구멍이 생기게" 생성
+      //    - 레인 기반 + 안전 레인 1개 보장
+      //    - 경고(텔레그래프) → 실제 낙뢰(피해) 2단계
+      // ============================================================
+      const LN_LANES = 12;          // 레인 수 (많을수록 더 촘촘하게 나뉨)
+      const LN_WARN_SEC = 0.75;     // 경고 시간(이 동안 피해 없음)
+      const LN_STRIKE_SEC = 0.28;   // 실제 피해 시간
+      const LN_DPS = 28;            // 초당 피해량(너무 빡세면 22~24로 내리면 됨)
+
+      function shuffle(arr){
+        for(let i=arr.length-1;i>0;i--){
+          const j = Math.floor(Math.random()*(i+1));
+          [arr[i], arr[j]] = [arr[j], arr[i]];
+        }
+        return arr;
+      }
+
       function spawnLightnings(){
-        for(let i=0;i<10;i++){
-          lightnings.push({ x: Math.random()*WORLD_W, y: -200, w: 60, h: WORLD_H+200, life: 75 });
+        const laneW = WORLD_W / LN_LANES;
+
+        // 플레이어가 있는 레인 근처를 "안전 레인 후보"로 잡아주면 회피가 쉬움
+        const pLane = clamp(Math.floor((player.x + player.w*0.5) / laneW), 0, LN_LANES-1);
+        const offset = (Math.random() < 0.5 ? -1 : 1) * (Math.random() < 0.6 ? 1 : 2);
+        const safeLane = clamp(pLane + offset, 0, LN_LANES-1);
+
+        // 웨이브가 올라가도 “덮어버리는” 상황이 안 나오게 상한을 둠
+        const strikeCount = clamp(3 + Math.floor(wave / 3), 3, 6);
+
+        const candidates = [];
+        for(let i=0;i<LN_LANES;i++){
+          if(i === safeLane) continue; // ✅ 안전 레인 보장
+          candidates.push(i);
+        }
+        shuffle(candidates);
+
+        const chosen = candidates.slice(0, strikeCount);
+        for(const lane of chosen){
+          const x0 = lane * laneW;
+          const pad = laneW * 0.12;
+          const w = laneW - pad*2;
+
+          lightnings.push({
+            x: x0 + pad,
+            y: -220,
+            w,
+            h: WORLD_H + 240,
+            phase: "warn",   // warn -> strike
+            t: LN_WARN_SEC
+          });
         }
       }
 
@@ -651,7 +707,7 @@
         r.apply();
         invulnTime = Math.max(invulnTime, 1.0);
 
-        // ✅ 보상 선택 완료 시점에만 자동 저장
+        // 보상 선택 완료 시점에만 자동 저장
         saveToSlot(getActiveSlot(), "CHECKPOINT");
 
         showItemNotice(`WAVE ${wave} START`);
@@ -681,11 +737,11 @@
           }
         }
 
-        if(keys["KeyA"]){ player.vx=-9; player.dir=-1; }
-        else if(keys["KeyD"]){ player.vx=9; player.dir=1; }
+        if(keys["KeyA"]){ player.vx=-PLAYER_SPEED; player.dir=-1; }
+        else if(keys["KeyD"]){ player.vx=PLAYER_SPEED; player.dir=1; }
         else player.vx *= 0.85;
 
-        if(keys["Space"] && player.grounded){ player.vy=-19; player.grounded=false; }
+        if(keys["Space"] && player.grounded){ player.vy=-JUMP_POWER; player.grounded=false; }
 
         player.vy += 0.9;
         player.x += player.vx;
@@ -751,14 +807,28 @@
           player.baseAtk += 15;
         }
 
-        // Lightning
+        // ==============================
+        // ✅ Lightning (텔레그래프 → 스트라이크)
+        // ==============================
         lightnings.forEach(ln=>{
-          ln.life--;
-          if(ln.life<15 && ln.life>0){
-            if(invulnTime<=0 && player.x < ln.x+ln.w && player.x+player.w > ln.x) player.hp -= 3;
+          ln.t -= dt;
+
+          if(ln.phase === "warn"){
+            if(ln.t <= 0){
+              ln.phase = "strike";
+              ln.t = LN_STRIKE_SEC;
+            }
+          } else {
+            // strike phase: DPS 방식으로 피해 (프레임레이트 영향 최소화)
+            if(invulnTime<=0 && player.x < ln.x+ln.w && player.x+player.w > ln.x){
+              player.hp -= LN_DPS * dt;
+            }
+            if(ln.t <= 0){
+              ln.dead = true;
+            }
           }
         });
-        lightnings = lightnings.filter(ln=>ln.life>0);
+        lightnings = lightnings.filter(ln=>!ln.dead);
 
         // Items pickup
         items = items.filter(it=>{
@@ -790,15 +860,28 @@
         if(img.bg.complete && img.bg.width>0) ctx.drawImage(img.bg, 0,0, WORLD_W, WORLD_H);
         else { ctx.fillStyle="#010108"; ctx.fillRect(0,0,WORLD_W,WORLD_H); }
 
-        // lightning
+        // lightning (warn/strike 시각 구분)
         lightnings.forEach(ln=>{
+          const isWarn = ln.phase === "warn";
+          const alpha = isWarn ? 0.18 : 1.0;
+
           if(img.ln.complete && img.ln.width>0){
-            ctx.globalAlpha = ln.life>15 ? 0.2 : 1.0;
+            ctx.globalAlpha = alpha;
             ctx.drawImage(img.ln, ln.x, ln.y, ln.w, ln.h);
             ctx.globalAlpha = 1.0;
           } else {
-            ctx.fillStyle = ln.life>15 ? "rgba(255,255,255,0.10)" : "rgba(255,255,255,0.9)";
+            ctx.globalAlpha = alpha;
+            ctx.fillStyle = "rgba(255,255,255,0.95)";
             ctx.fillRect(ln.x, 0, ln.w, WORLD_H);
+            ctx.globalAlpha = 1.0;
+          }
+
+          // 바닥 경고 라인(더 잘 보이게)
+          if(isWarn){
+            ctx.globalAlpha = 0.35;
+            ctx.fillStyle = "#ffffff";
+            ctx.fillRect(ln.x, floorY + 4, ln.w, 4);
+            ctx.globalAlpha = 1.0;
           }
         });
 
@@ -877,16 +960,26 @@
       resize();
       syncHUD();
 
+      // Touch 버튼 홀드
+      function bindHold(el, key){
+        if(!el) return;
+        const down = (e)=>{ e.preventDefault(); keys[key]=true; };
+        const up = (e)=>{ e.preventDefault(); keys[key]=false; };
+        el.addEventListener("pointerdown", down, {passive:false});
+        el.addEventListener("pointerup", up, {passive:false});
+        el.addEventListener("pointercancel", up, {passive:false});
+        el.addEventListener("pointerleave", up, {passive:false});
+      }
+      bindHold(tLeft, "KeyA");
+      bindHold(tRight, "KeyD");
+      bindHold(tJump, "Space");
+
       setActiveSlot(getActiveSlot());
       renderAllMenus();
       setState("TITLE");
 
-      // spawn loops
       scheduleEnemySpawn();
       scheduleLightningSpawn();
-
-      // buttons
-      if(btnTitleBack) btnTitleBack.addEventListener("click", backToGame);
 
       requestAnimationFrame(frame);
 
