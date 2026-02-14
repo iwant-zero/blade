@@ -25,6 +25,9 @@
     const scoreEl = document.getElementById("score");
     const pauseBtn = document.getElementById("pause-btn");
 
+    const titleMenu = document.getElementById("title-menu");
+    const btnTitleBack = document.getElementById("btn-title-back");
+
     // Title slots
     const tokenLineTitle = document.getElementById("token-line-title");
     const slotBadge = [null,
@@ -92,14 +95,12 @@
     const btnRetry = document.getElementById("btn-retry");
     const btnOverTitle = document.getElementById("btn-over-title");
 
-    const titleMenu = document.getElementById("title-menu");
-
     // ========= CONSTANTS (SAVES) =========
     const SLOT_COUNT = 3;
-    const SAVE_PREFIX = "blade_save_slot_v2_";        // + slot number
-    const KEY_ACTIVE_SLOT = "blade_active_slot_v2";   // 1~3
-    const KEY_CONTINUE_TOKEN = "blade_continue_token_v2"; // 0/1
-    const KEY_DEATH_PENDING = "blade_death_pending_v2";   // 0/1
+    const SAVE_PREFIX = "blade_save_slot_v2_";
+    const KEY_ACTIVE_SLOT = "blade_active_slot_v2";
+    const KEY_CONTINUE_TOKEN = "blade_continue_token_v2";
+    const KEY_DEATH_PENDING = "blade_death_pending_v2";
 
     const slotKey = (slot) => `${SAVE_PREFIX}${slot}`;
 
@@ -121,21 +122,14 @@
         return (v === null || v === undefined) ? fallback : v;
       } catch { return fallback; }
     }
-
-    function lsSet(key, val) {
-      try { localStorage.setItem(key, String(val)); } catch {}
-    }
-
-    function lsDel(key) {
-      try { localStorage.removeItem(key); } catch {}
-    }
+    function lsSet(key, val) { try { localStorage.setItem(key, String(val)); } catch {} }
+    function lsDel(key) { try { localStorage.removeItem(key); } catch {} }
 
     function getActiveSlot() {
       const v = parseInt(lsGet(KEY_ACTIVE_SLOT, "1"), 10);
       if (!Number.isFinite(v)) return 1;
       return clamp(v, 1, SLOT_COUNT);
     }
-
     function setActiveSlot(slot) {
       const s = clamp(parseInt(slot, 10) || 1, 1, SLOT_COUNT);
       lsSet(KEY_ACTIVE_SLOT, s);
@@ -146,7 +140,6 @@
       const v = parseInt(lsGet(KEY_CONTINUE_TOKEN, "0"), 10);
       return (v === 1) ? 1 : 0;
     }
-
     function setContinueToken(v) {
       lsSet(KEY_CONTINUE_TOKEN, v ? 1 : 0);
       renderAllMenus();
@@ -156,7 +149,6 @@
       const v = parseInt(lsGet(KEY_DEATH_PENDING, "0"), 10);
       return (v === 1) ? 1 : 0;
     }
-
     function setDeathPending(v) {
       lsSet(KEY_DEATH_PENDING, v ? 1 : 0);
       renderAllMenus();
@@ -171,22 +163,15 @@
         return data;
       } catch { return null; }
     }
-
     function writeSave(slot, data) {
       try {
         localStorage.setItem(slotKey(slot), JSON.stringify(data));
         return true;
       } catch { return false; }
     }
-
-    function clearSave(slot) {
-      lsDel(slotKey(slot));
-    }
-
+    function clearSave(slot) { lsDel(slotKey(slot)); }
     function anySaveExists() {
-      for (let s = 1; s <= SLOT_COUNT; s++) {
-        if (readSave(s)) return true;
-      }
+      for (let s = 1; s <= SLOT_COUNT; s++) if (readSave(s)) return true;
       return false;
     }
 
@@ -235,8 +220,11 @@
     } catch { bgm = null; }
 
     // ========= GAME STATE =========
-    // "TITLE" | "PLAY" | "PAUSE" | "REWARD" | "GAMEOVER"
-    let state = "TITLE";
+    let state = "TITLE"; // "TITLE" | "PLAY" | "PAUSE" | "REWARD" | "GAMEOVER"
+
+    // ✅ 플레이 중 타이틀을 열었는지(=돌아갈 수 있는지)
+    let titleFromGame = false;
+    let titleReturnState = "PAUSE"; // 기본은 pause로 복귀
 
     let score = 0;
     let level = 1;
@@ -290,6 +278,11 @@
       if (tokenLineOver) tokenLineOver.textContent = text;
     }
 
+    function syncTitleBackButton() {
+      if (!btnTitleBack) return;
+      btnTitleBack.style.display = (state === "TITLE" && titleFromGame) ? "inline-block" : "none";
+    }
+
     function renderSlotUI() {
       const active = getActiveSlot();
       const token = getContinueToken();
@@ -298,10 +291,8 @@
       for (let s = 1; s <= SLOT_COUNT; s++) {
         const data = readSave(s);
 
-        // active badge
         if (slotActive[s]) slotActive[s].style.display = (s === active) ? "inline-block" : "none";
 
-        // badge + meta
         if (!data) {
           if (slotBadge[s]) slotBadge[s].textContent = "EMPTY";
           if (slotMeta[s]) slotMeta[s].textContent = "No save data.";
@@ -319,18 +310,17 @@
           if (slotMeta[s]) slotMeta[s].textContent = lines.join("\n");
           if (slotDelBtn[s]) slotDelBtn[s].disabled = false;
 
-          // ✅ 죽은 뒤(=deathPending)인데 토큰이 0이면, 타이틀에서도 로드로 우회 못하게 막음
           const titleLoadBlocked = (deathPending === 1 && token === 0);
           if (slotLoadBtn[s]) slotLoadBtn[s].disabled = titleLoadBlocked ? true : false;
         }
       }
 
-      // pause slot mini buttons
       for (let s = 1; s <= SLOT_COUNT; s++) {
         if (!miniSlotBtn[s]) continue;
         miniSlotBtn[s].classList.toggle("active", s === active);
       }
       if (activeSlotNote) activeSlotNote.textContent = `ACTIVE: SLOT ${active}`;
+
       updateTokenLines();
     }
 
@@ -338,14 +328,10 @@
       const token = getContinueToken();
       const hasAny = anySaveExists();
 
-      if (!overNote) return;
-
-      if (!hasAny) {
-        overNote.textContent = "저장 데이터가 없습니다. (SAVE 또는 보스 체크포인트 저장 필요)";
-      } else if (token === 0) {
-        overNote.textContent = "이어하기 토큰이 0입니다. (보스 체크포인트/수동 저장으로 충전)";
-      } else {
-        overNote.textContent = "아래에서 불러올 슬롯을 선택하세요. (이어하기 1회 소모)";
+      if (overNote) {
+        if (!hasAny) overNote.textContent = "저장 데이터가 없습니다. (SAVE 또는 보스 체크포인트 저장 필요)";
+        else if (token === 0) overNote.textContent = "이어하기 토큰이 0입니다. (보스 체크포인트/수동 저장으로 충전)";
+        else overNote.textContent = "아래에서 불러올 슬롯을 선택하세요. (이어하기 1회 소모)";
       }
 
       for (let s = 1; s <= SLOT_COUNT; s++) {
@@ -368,6 +354,7 @@
     function renderAllMenus() {
       renderSlotUI();
       renderGameOverUI();
+      syncTitleBackButton();
     }
 
     function setState(next) {
@@ -378,14 +365,12 @@
       showOverlay(rewardMenu, state === "REWARD");
       showOverlay(overlay, state === "GAMEOVER");
 
-      // pause button visible only in play/pause
       if (pauseBtn) {
         const show = (state === "PLAY" || state === "PAUSE");
         pauseBtn.style.display = show ? "block" : "none";
         pauseBtn.textContent = (state === "PAUSE") ? "▶" : "⏸";
       }
 
-      // BGM
       if (bgm) {
         if (state === "PLAY") {
           if (bgm.currentTime > 0) bgm.play().catch(()=>{});
@@ -398,9 +383,6 @@
     }
 
     // ========= SAVE POLICIES =========
-    // ✅ “보스 클리어 직후에만 자동 저장” + 수동 SAVE 가능
-    // ✅ “죽으면 저장 유지”
-    // ✅ “죽은 뒤 로드(이어하기)는 토큰 1회 소모”
     function saveToSlot(slot, reasonText = "SAVED") {
       if (player.hp <= 0) return false;
 
@@ -410,21 +392,12 @@
         slot: s,
         savedAt: safeNowISO(),
         score, level, exp, wave,
-        player: {
-          hp: player.hp,
-          maxHp: player.maxHp,
-          baseAtk: player.baseAtk
-        },
-        core: {
-          stack: coreStack,
-          time: awakeningTimeLeft,
-          color: coreColor
-        }
+        player: { hp: player.hp, maxHp: player.maxHp, baseAtk: player.baseAtk },
+        core: { stack: coreStack, time: awakeningTimeLeft, color: coreColor }
       };
 
       const ok = writeSave(s, data);
       if (ok) {
-        // ✅ 체크포인트 저장이 되면 이어하기 토큰 충전(1)
         setContinueToken(1);
         showItemNotice(`${reasonText} (SLOT ${s})`);
       } else {
@@ -458,31 +431,29 @@
       player.x = W * 0.5 - player.w * 0.5;
       player.y = floorY - player.h;
 
-      invulnTime = 1.2; // 로드 직후 안전
+      invulnTime = 1.2;
       syncHUD();
     }
 
     function loadFromSlot(slot, fromDeath = false) {
       const s = clamp(slot, 1, SLOT_COUNT);
       const data = readSave(s);
-      if (!data) {
-        showItemNotice(`SLOT ${s} EMPTY`);
-        return false;
-      }
+      if (!data) { showItemNotice(`SLOT ${s} EMPTY`); return false; }
 
-      // ✅ 죽은 뒤 이어하기는 토큰 필요 + 1회 소모
       if (fromDeath) {
         const token = getContinueToken();
-        if (token !== 1) {
-          showItemNotice("NO CONTINUE");
-          return false;
-        }
-        setContinueToken(0);      // 1회 소모
-        setDeathPending(0);       // 죽음 플래그 해제
+        if (token !== 1) { showItemNotice("NO CONTINUE"); return false; }
+        setContinueToken(0);
+        setDeathPending(0);
       }
 
-      setActiveSlot(s);           // 로드한 슬롯을 활성 슬롯으로
+      setActiveSlot(s);
       applySaveData(data);
+
+      // ✅ 로드하면 “플레이로 복귀”이므로 titleFromGame 상태는 해제
+      titleFromGame = false;
+      titleReturnState = "PAUSE";
+
       setState("PLAY");
       showItemNotice(`LOADED (SLOT ${s})`);
       return true;
@@ -494,8 +465,8 @@
     function startNewGame(slot) {
       const s = clamp(slot, 1, SLOT_COUNT);
       setActiveSlot(s);
-      clearSave(s);              // 해당 슬롯을 새 게임으로 덮기
-      setContinueToken(0);       // 새게임 시작은 토큰 0 (저장/보스체크포인트로 충전)
+      clearSave(s);
+      setContinueToken(0);
       setDeathPending(0);
 
       score = 0; level = 1; exp = 0; wave = 1;
@@ -511,19 +482,40 @@
       player.x = W * 0.5 - player.w * 0.5;
       player.y = floorY - player.h;
 
+      // 새게임 진입은 “진짜 플레이”이므로 titleFromGame 해제
+      titleFromGame = false;
+      titleReturnState = "PAUSE";
+
       syncHUD();
       setState("PLAY");
       showItemNotice(`NEW GAME (SLOT ${s})`);
     }
 
+    // ✅ 처음 타이틀(게임 시작 화면)로 돌아갈 때
     function toTitle() {
       keysReset();
+      titleFromGame = false;
+      titleReturnState = "PAUSE";
       setState("TITLE");
     }
 
+    // ✅ 플레이 중(일시정지에서) 타이틀 메뉴를 “저장 확인용”으로 열 때
+    function openTitleFromPause() {
+      titleFromGame = true;
+      titleReturnState = "PAUSE";
+      setState("TITLE");
+    }
+
+    // ✅ 타이틀 메뉴에서 다시 게임으로 돌아가기
+    function backToGame() {
+      if (!titleFromGame) return;
+      setState(titleReturnState || "PAUSE");
+    }
+
     function endGame() {
-      // ✅ 저장은 유지
       setDeathPending(1);
+      titleFromGame = false;
+      titleReturnState = "PAUSE";
       setState("GAMEOVER");
       if (finalResult) finalResult.textContent = `SCORE: ${score} | LEVEL: ${level} | WAVE: ${wave}`;
     }
@@ -539,13 +531,14 @@
       pauseBtn.addEventListener("touchstart", (e) => { e.preventDefault(); togglePause(); }, { passive:false });
     }
 
-    // Pause menu buttons
+    if (btnTitleBack) btnTitleBack.addEventListener("click", () => backToGame());
+
+    // Pause menu
     if (btnResume) btnResume.addEventListener("click", () => setState("PLAY"));
     if (btnSave) btnSave.addEventListener("click", () => saveToSlot(getActiveSlot(), "SAVED"));
     if (btnRestart) btnRestart.addEventListener("click", () => startNewGame(getActiveSlot()));
-    if (btnToTitle) btnToTitle.addEventListener("click", () => toTitle());
+    if (btnToTitle) btnToTitle.addEventListener("click", () => openTitleFromPause());
 
-    // Pause slot switches
     for (let s = 1; s <= SLOT_COUNT; s++) {
       const b = miniSlotBtn[s];
       if (!b) continue;
@@ -555,7 +548,6 @@
     // Title slot buttons
     for (let s = 1; s <= SLOT_COUNT; s++) {
       if (slotLoadBtn[s]) slotLoadBtn[s].addEventListener("click", () => {
-        // ✅ deathPending 상태면 타이틀 로드도 “죽은 뒤 이어하기”로 취급 (우회 방지)
         const fromDeath = (getDeathPending() === 1);
         loadFromSlot(s, fromDeath);
       });
@@ -569,14 +561,22 @@
     for (let s = 1; s <= SLOT_COUNT; s++) {
       const b = goLoadBtn[s];
       if (!b) continue;
-      b.addEventListener("click", () => loadFromSlot(s, true)); // fromDeath=true
+      b.addEventListener("click", () => loadFromSlot(s, true));
     }
 
     window.addEventListener("keydown", (e) => {
       if (["Space","ArrowUp","ArrowDown","ArrowLeft","ArrowRight"].includes(e.code)) e.preventDefault();
 
-      // TITLE / GAMEOVER / REWARD에서 조작 제한
-      if (state === "TITLE" || state === "GAMEOVER" || state === "REWARD") return;
+      // ✅ TITLE에서도 “플레이 중 타이틀”이면 ESC/P로 복귀 가능
+      if (state === "TITLE") {
+        if (titleFromGame && (e.code === "Escape" || e.code === "KeyP")) {
+          e.preventDefault();
+          backToGame();
+        }
+        return;
+      }
+
+      if (state === "GAMEOVER" || state === "REWARD") return;
 
       if (e.code === "KeyP" || e.code === "Escape") {
         e.preventDefault();
@@ -585,13 +585,12 @@
       }
 
       keys[e.code] = true;
-
       if (bgm && bgm.paused && (state === "PLAY" || state === "PAUSE")) bgm.play().catch(()=>{});
     }, { passive:false });
 
     window.addEventListener("keyup", (e) => { keys[e.code] = false; });
 
-    // ========= SPAWN SYSTEM (dynamic timers) =========
+    // ========= SPAWN SYSTEM =========
     function enemySpawnMs() {
       const ms = 2000 - (wave - 1) * 90;
       return clamp(ms, 850, 2000);
@@ -668,7 +667,7 @@
       }
     }
 
-    // ========= REWARD / BOSS CLEAR CHECKPOINT AUTOSAVE =========
+    // ========= REWARD / CHECKPOINT AUTOSAVE =========
     const REWARD_POOL = [
       { id:"heal_full", name:"나노 리부트", desc:"HP 완전 회복 + 최대 HP +20", apply:()=>{ player.maxHp += 20; player.hp = player.maxHp; } },
       { id:"atk_up", name:"코어 튜닝", desc:"기본 공격력 +25", apply:()=>{ player.baseAtk += 25; } },
@@ -700,8 +699,7 @@
 
     function onBossCleared() {
       enemies = [];
-      const nextWave = wave + 1;
-      openRewardMenu(nextWave);
+      openRewardMenu(wave + 1);
     }
 
     function applyReward(index) {
@@ -712,7 +710,7 @@
       r.apply();
       invulnTime = Math.max(invulnTime, 1.0);
 
-      // ✅ 보스 클리어 직후(보상 선택 완료 후)만 자동 저장
+      // ✅ 보스 클리어 직후(보상 선택 완료)만 자동 저장
       saveToSlot(getActiveSlot(), "CHECKPOINT");
 
       showItemNotice(`WAVE ${wave} START`);
@@ -746,7 +744,6 @@
         }
       }
 
-      // move
       if (keys["KeyA"]) { player.vx = -9; player.dir = -1; }
       else if (keys["KeyD"]) { player.vx = 9; player.dir = 1; }
       else player.vx *= 0.85;
@@ -768,7 +765,6 @@
         player.grounded = true;
       }
 
-      // orbit visuals + auto attack
       const currentAtk = player.baseAtk * (1 + coreStack * 0.6);
       const rotationSpeed = 0.2 + (coreStack * 0.06);
       const orbitCount = 1 + coreStack;
@@ -784,21 +780,17 @@
         });
       }
 
-      // enemies
       const hitRangeBase = 190 + (coreStack * 10);
       let bossJustDied = false;
 
       enemies.forEach(en => {
-        // chase
         if (cx(en) < cx(player)) en.x += en.speed;
         else en.x -= en.speed;
 
-        // contact damage
         if (invulnTime <= 0 && aabbOverlap(player, en)) {
           player.hp -= en.isBoss ? 0.8 : 0.3;
         }
 
-        // hit (center distance) — 보스도 정상으로 피 감소
         const d = distCenter(player, en);
         const bossBonus = en.isBoss ? (en.w * 0.15) : 0;
 
@@ -823,14 +815,12 @@
 
       if (bossJustDied) onBossCleared();
 
-      // level up
       if (exp >= 100) {
         level++;
         exp = 0;
         player.baseAtk += 15;
       }
 
-      // lightning
       lightnings.forEach(ln => {
         ln.life--;
         if (ln.life < 15 && ln.life > 0) {
@@ -839,7 +829,6 @@
       });
       lightnings = lightnings.filter(ln => ln.life > 0);
 
-      // pickup
       items = items.filter(it => {
         if (Math.abs(cx(player) - (it.x + it.w / 2)) < 65 &&
             Math.abs(cy(player) - (it.y + it.h / 2)) < 100) {
@@ -861,11 +850,9 @@
     }
 
     function draw() {
-      // background
       if (img.bg.complete && img.bg.width > 0) ctx.drawImage(img.bg, 0, 0, W, H);
       else { ctx.fillStyle = "#010108"; ctx.fillRect(0, 0, W, H); }
 
-      // lightning
       lightnings.forEach(ln => {
         if (img.ln.complete && img.ln.width > 0) {
           ctx.globalAlpha = ln.life > 15 ? 0.2 : 1.0;
@@ -877,7 +864,6 @@
         }
       });
 
-      // floor
       ctx.strokeStyle = "#1a1a1a";
       ctx.lineWidth = 4;
       ctx.beginPath();
@@ -885,7 +871,6 @@
       ctx.lineTo(W, floorY);
       ctx.stroke();
 
-      // items
       items.forEach(it => {
         let itemImg = img.it_heal;
         if (it.type === "CORE") itemImg = img.it_core;
@@ -898,7 +883,6 @@
         }
       });
 
-      // orbit
       afterimages.forEach(a => {
         ctx.globalAlpha = a.opacity;
         ctx.fillStyle = a.color || "#0ff";
@@ -906,7 +890,6 @@
       });
       ctx.globalAlpha = 1;
 
-      // enemies + boss hp
       enemies.forEach(en => {
         const image = en.isBoss ? img.b : img.e;
         if (image.complete && image.width > 0) ctx.drawImage(image, en.x, en.y, en.w, en.h);
@@ -921,7 +904,6 @@
         }
       });
 
-      // player (blink while invuln)
       const blink = (invulnTime > 0) ? (Math.floor(performance.now() / 80) % 2 === 0) : true;
       if (blink) {
         ctx.save();
@@ -958,16 +940,13 @@
     player.y = floorY - player.h;
     syncHUD();
 
-    // default active slot
     setActiveSlot(getActiveSlot());
     renderAllMenus();
     setState("TITLE");
 
-    // spawners
     scheduleEnemySpawn();
     scheduleLightningSpawn();
 
-    // start loop
     ctx.fillStyle = "#010108";
     ctx.fillRect(0, 0, W, H);
     ctx.fillStyle = "#fff";
