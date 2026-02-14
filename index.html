@@ -21,6 +21,17 @@
   <!-- Pause Button -->
   <button id="pause-btn" type="button" aria-label="pause">⏸</button>
 
+  <!-- ✅ MOBILE TOUCH CONTROLS -->
+  <div id="touch" aria-hidden="false" style="display:none;">
+    <div class="touch-left">
+      <button class="tbtn" id="t-left" type="button" aria-label="left">◀</button>
+      <button class="tbtn" id="t-right" type="button" aria-label="right">▶</button>
+    </div>
+    <div class="touch-right">
+      <button class="tbtn big" id="t-jump" type="button" aria-label="jump">⤒</button>
+    </div>
+  </div>
+
   <!-- Debug -->
   <div id="debug"></div>
 
@@ -30,7 +41,6 @@
       <div class="panel-title">BLADE</div>
       <div class="panel-sub" id="title-sub">세이브 슬롯 3개 · 보스 체크포인트</div>
 
-      <!-- ✅ 플레이 중 TITLE 열었을 때만 보이는 “뒤로가기” -->
       <div class="panel-buttons" style="margin:6px 0 10px;">
         <button class="menu-btn ghost" id="btn-title-back" type="button" style="display:none;">
           BACK TO GAME
@@ -93,8 +103,8 @@
       </div>
 
       <div class="hint">조작: A/D 이동 · Space 점프 · P/ESC/⏸ 일시정지</div>
+      <div class="hint dim">모바일: 좌/우 버튼 · 점프(⤒)</div>
       <div class="hint dim">자동 저장은 “보스 클리어 → 보상 1개 선택 완료” 순간에만 발생합니다.</div>
-      <div class="hint dim">플레이 중 TITLE을 열었으면 BACK TO GAME 또는 ESC/P로 되돌아갈 수 있습니다.</div>
     </div>
   </div>
 
@@ -122,8 +132,6 @@
         <button class="menu-btn" id="btn-restart" type="button">NEW GAME</button>
         <button class="menu-btn ghost" id="btn-to-title" type="button">TITLE</button>
       </div>
-
-      <div class="hint dim">수동 저장 또는 보스 체크포인트 저장이 있어야 “이어하기”가 가능합니다.</div>
     </div>
   </div>
 
