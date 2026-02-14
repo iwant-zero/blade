@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
+  <title>BLADE</title>
+
+  <!-- ✅ 레포 구조에 맞춘 CSS 경로 -->
+  <link rel="stylesheet" href="./css.html/style.css" />
+</head>
+<body>
+  <!-- UI -->
+  <div id="ui">
+    <div id="stats">LV.1 에테르 기사</div>
+
+    <div class="bar-container">
+      <div id="hp-fill"></div>
+    </div>
+
+    <div id="awk-timer" style="display:none;">OVERDRIVE: 0.0s</div>
+
+    <div id="score">SCORE: 0</div>
+
+    <div class="bar-container exp">
+      <div id="exp-fill"></div>
+    </div>
+  </div>
+
+  <div id="item-msg"></div>
+
+  <!-- Debug -->
+  <div id="debug"></div>
+
+  <!-- Pause -->
+  <div id="pause-menu" aria-hidden="true">
+    <h1>PAUSED</h1>
+    <button class="menu-btn" id="btn-resume">RESUME</button>
+    <button class="menu-btn" id="btn-restart">RESTART</button>
+  </div>
+
+  <!-- Game Over -->
+  <div id="overlay" aria-hidden="true">
+    <h1 class="gameover-title">GAME OVER</h1>
+    <div id="final-result" class="final-result"></div>
+    <button class="menu-btn" id="btn-retry">RETRY</button>
+  </div>
+
+  <canvas id="gameCanvas"></canvas>
+
+  <!-- ✅ 로드 실패 원인 표시 (game.js 못 불러오면 바로 뜸) -->
+  <script>
+    (function(){
+      const debug = document.getElementById('debug');
+      function show(msg){
+        if(!debug) return;
+        debug.style.display='block';
+        debug.textContent = msg;
+      }
+      window.__blade_show_debug = show;
+
+      window.addEventListener('error', (e)=>{
+        show(`JS ERROR: ${e.message}\n${e.filename}:${e.lineno}:${e.colno}`);
+      });
+      window.addEventListener('unhandledrejection', (e)=>{
+        const r = (e && e.reason) ? (e.reason.stack || e.reason.message || String(e.reason)) : 'unknown';
+        show(`PROMISE ERROR:\n${r}`);
+      });
+
+      setTimeout(()=>{
+        if(!window.__BLADE_BOOTED){
+          show(
+            "game.js가 실행되지 않았습니다.\n" +
+            "경로: ./js.html/game.js\n" +
+            "확인: Blade/index.html 과 같은 레벨에 js.html 폴더가 있는지,\n" +
+            "그리고 그 안에 game.js 파일이 있는지 확인하세요.\n" +
+            "※ 가능하면 Live Server로 실행하세요."
+          );
+        }
+      }, 2000);
+    })();
+  </script>
+
+  <!-- ✅ 레포 구조에 맞춘 JS 경로 -->
+  <script src="./js.html/game.js" defer
+    onerror="window.__blade_show_debug && window.__blade_show_debug('game.js 로드 실패!\\n경로: ./js.html/game.js\\n폴더/파일 이름을 정확히 확인하세요.');">
+  </script>
+</body>
+</html>
