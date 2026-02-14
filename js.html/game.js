@@ -113,13 +113,13 @@
       const btnOverTitle = document.getElementById("btn-over-title");
 
       // ============================================================
-      // "줌 아웃" : 월드 크기를 키워서 회피 공간 확보
+      // 월드 크기(줌 아웃)
       // ============================================================
       const WORLD_W = 1280;
       const WORLD_H = 720;
       const floorY = WORLD_H - 120;
 
-      // ===== Render scaling (캔버스 실제 픽셀 기준) =====
+      // ===== Render scaling =====
       let scalePx = 1;
       let offPxX = 0;
       let offPxY = 0;
@@ -214,8 +214,20 @@
       let coreStack = 0, awakeningTimeLeft = 0, coreColor = "#0ff";
       let invulnTime = 0;
 
-      const PLAYER_SPEED = 12;
+      // ============================================================
+      // ✅ 이동: 꾹 누름은 현상태 유지, 탭(짧게)만 절반 거리
+      // ============================================================
+      const PLAYER_SPEED = 12; // 유지(현상태)
       const JUMP_POWER = 19;
+
+      // 탭(짧게 누름) 이동 조절
+      const TAP_SPEED_FACTOR = 0.5; // 탭은 반속도
+      const TAP_TO_FULL_SEC  = 0.12; // 이 시간 이상 누르면 풀속도
+
+      let leftHoldSec = 0;
+      let rightHoldSec = 0;
+      let prevA = false;
+      let prevD = false;
 
       const player = {
         x: WORLD_W*0.5 - 40, y: floorY - 110, w: 80, h: 110,
@@ -227,7 +239,7 @@
       const keys = {};
       let currentRewards = [];
 
-      // ===== Touch (중복 바인딩 방지: 여기서만 1번 바인딩) =====
+      // ===== Touch =====
       function bindHoldButton(el, keyCode){
         if(!el) return;
         const down = (e)=>{ e.preventDefault(); keys[keyCode]=true; };
@@ -426,6 +438,10 @@
         player.y = floorY - player.h;
         invulnTime = 1.2;
 
+        // 탭/홀드 추적 초기화
+        leftHoldSec = 0; rightHoldSec = 0;
+        prevA = false; prevD = false;
+
         syncHUD();
       }
 
@@ -470,6 +486,9 @@
         enemies=[]; items=[]; lightnings=[]; afterimages=[];
         player.x = WORLD_W*0.5 - player.w*0.5;
         player.y = floorY - player.h;
+
+        leftHoldSec = 0; rightHoldSec = 0;
+        prevA = false; prevD = false;
 
         titleFromGame=false; titleReturnState="PAUSE";
         syncHUD();
@@ -606,16 +625,11 @@
         else spawnMob();
       }
 
-      // ============================================================
-      // 번개: 레인 기반 + 안전 레인 1개 보장 + 경고 → 낙뢰
-      // ============================================================
+      // ===== Lightning =====
       const LN_LANES = 12;
       const LN_WARN_SEC = 0.75;
-
-      // ✅ (2) 번개 데미지 2배로 강하게
       const LN_STRIKE_SEC = 0.28;
-      const LN_DPS = 56; // (기존 28) -> 2배
-
+      const LN_DPS = 56; // 2배 강하게(요청 반영)
       function shuffle(arr){
         for(let i=arr.length-1;i>0;i--){
           const j = Math.floor(Math.random()*(i+1));
@@ -626,13 +640,11 @@
 
       function spawnLightnings(){
         const laneW = WORLD_W / LN_LANES;
-
         const pLane = clamp(Math.floor((player.x + player.w*0.5) / laneW), 0, LN_LANES-1);
         const offset = (Math.random() < 0.5 ? -1 : 1) * (Math.random() < 0.6 ? 1 : 2);
         const safeLane = clamp(pLane + offset, 0, LN_LANES-1);
 
-        // ✅ (1) 번개는 항상 6개 떨어지게 고정
-        const strikeCount = 6;
+        const strikeCount = 6; // 6개 고정(요청 반영)
 
         const candidates = [];
         for(let i=0;i<LN_LANES;i++){
@@ -729,11 +741,52 @@
           }
         }
 
-        if(keys["KeyA"]){ player.vx=-PLAYER_SPEED; player.dir=-1; }
-        else if(keys["KeyD"]){ player.vx=PLAYER_SPEED; player.dir=1; }
-        else player.vx *= 0.85;
+        // ============================================================
+        // ✅ 탭/홀드 이동 로직
+        // - 꾹 누르면 기존 속도 유지
+        // - 짧게 톡 누르면 절반 속도 + 떼는 순간 관성 끊어서 더 짧게
+        // ============================================================
+        const aHold = !!keys["KeyA"] && !keys["KeyD"];
+        const dHold = !!keys["KeyD"] && !keys["KeyA"];
+        let tapReleased = false;
 
-        if(keys["Space"] && player.grounded){ player.vy=-JUMP_POWER; player.grounded=false; }
+        // A
+        if(aHold){
+          leftHoldSec = Math.min(leftHoldSec + dt, 9);
+        } else {
+          if(prevA && leftHoldSec > 0 && leftHoldSec < TAP_TO_FULL_SEC) tapReleased = true;
+          leftHoldSec = 0;
+        }
+
+        // D
+        if(dHold){
+          rightHoldSec = Math.min(rightHoldSec + dt, 9);
+        } else {
+          if(prevD && rightHoldSec > 0 && rightHoldSec < TAP_TO_FULL_SEC) tapReleased = true;
+          rightHoldSec = 0;
+        }
+
+        prevA = aHold;
+        prevD = dHold;
+
+        if(aHold){
+          const f = (leftHoldSec < TAP_TO_FULL_SEC) ? TAP_SPEED_FACTOR : 1;
+          player.vx = -PLAYER_SPEED * f;
+          player.dir = -1;
+        } else if(dHold){
+          const f = (rightHoldSec < TAP_TO_FULL_SEC) ? TAP_SPEED_FACTOR : 1;
+          player.vx = PLAYER_SPEED * f;
+          player.dir = 1;
+        } else {
+          // 탭이면 관성 끊어서 "조금만" 이동
+          if(tapReleased) player.vx = 0;
+          else player.vx *= 0.85;
+        }
+
+        if(keys["Space"] && player.grounded){
+          player.vy = -JUMP_POWER;
+          player.grounded = false;
+        }
 
         player.vy += 0.9;
         player.x += player.vx;
