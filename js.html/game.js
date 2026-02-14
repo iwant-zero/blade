@@ -25,6 +25,12 @@
     const scoreEl = document.getElementById("score");
     const pauseBtn = document.getElementById("pause-btn");
 
+    // ✅ Touch controls
+    const touch = document.getElementById("touch");
+    const tLeft = document.getElementById("t-left");
+    const tRight = document.getElementById("t-right");
+    const tJump = document.getElementById("t-jump");
+
     const titleMenu = document.getElementById("title-menu");
     const btnTitleBack = document.getElementById("btn-title-back");
 
@@ -175,6 +181,14 @@
       return false;
     }
 
+    // ========= MOBILE VH FIX =========
+    function setVhUnit(){
+      const vh = window.innerHeight * 0.01;
+      document.documentElement.style.setProperty('--vh', `${vh}px`);
+    }
+    window.addEventListener('resize', setVhUnit);
+    setVhUnit();
+
     // ========= CANVAS SIZE (HiDPI) =========
     let W = 0, H = 0, DPR = 1;
     let floorY = 0;
@@ -227,8 +241,6 @@
 
     // ========= GAME STATE =========
     let state = "TITLE"; // "TITLE" | "PLAY" | "PAUSE" | "REWARD" | "GAMEOVER"
-
-    // TITLE을 플레이 중 열었는지 여부
     let titleFromGame = false;
     let titleReturnState = "PAUSE";
 
@@ -248,6 +260,38 @@
     let afterimages = [];
     const keys = {};
     let currentRewards = [];
+
+    // ========= TOUCH BINDING =========
+    function bindHoldButton(el, keyCode) {
+      if (!el) return;
+      const down = (e) => {
+        e.preventDefault();
+        keys[keyCode] = true;
+        try { el.setPointerCapture && el.setPointerCapture(e.pointerId); } catch {}
+      };
+      const up = (e) => {
+        e.preventDefault();
+        keys[keyCode] = false;
+        try { el.releasePointerCapture && el.releasePointerCapture(e.pointerId); } catch {}
+      };
+
+      el.addEventListener("pointerdown", down, { passive:false });
+      el.addEventListener("pointerup", up, { passive:false });
+      el.addEventListener("pointercancel", up, { passive:false });
+      el.addEventListener("pointerleave", up, { passive:false });
+      el.addEventListener("contextmenu", (e)=>e.preventDefault());
+    }
+
+    bindHoldButton(tLeft, "KeyA");
+    bindHoldButton(tRight, "KeyD");
+    bindHoldButton(tJump, "Space");
+
+    function setTouchVisible(on) {
+      if (!touch) return;
+      // 터치 디바이스(대충)일 때만 보여주기
+      const coarse = window.matchMedia && window.matchMedia("(pointer: coarse)").matches;
+      touch.style.display = (on && coarse) ? "flex" : "none";
+    }
 
     // ========= UI =========
     function showOverlay(el, on) {
@@ -358,7 +402,6 @@
     }
 
     function setState(next) {
-      // ✅ 보험: 게임오버로 들어가면 TITLE 복귀 플래그를 아예 끊어버림
       if (next === "GAMEOVER") {
         titleFromGame = false;
         titleReturnState = "PAUSE";
@@ -376,6 +419,9 @@
         pauseBtn.style.display = show ? "block" : "none";
         pauseBtn.textContent = (state === "PAUSE") ? "▶" : "⏸";
       }
+
+      // ✅ 터치 버튼은 PLAY에서만 표시 (죽음/메뉴에서는 숨김)
+      setTouchVisible(state === "PLAY");
 
       if (bgm) {
         if (state === "PLAY") {
@@ -404,7 +450,7 @@
 
       const ok = writeSave(s, data);
       if (ok) {
-        setContinueToken(1); // 저장이 있으면 토큰 충전
+        setContinueToken(1);
         showItemNotice(`${reasonText} (SLOT ${s})`);
       } else {
         showItemNotice("SAVE FAILED");
@@ -449,7 +495,7 @@
       if (fromDeath) {
         const token = getContinueToken();
         if (token !== 1) { showItemNotice("NO CONTINUE"); return false; }
-        setContinueToken(0);   // ✅ 1회 소모
+        setContinueToken(0);
         setDeathPending(0);
       }
 
@@ -513,15 +559,11 @@
       setState(titleReturnState || "PAUSE");
     }
 
-    // ✅✅✅ 여기 핵심: 죽으면 절대 TITLE로 자동 이동하지 않음
     function endGame() {
       setDeathPending(1);
-
-      // 보험(죽는 순간에 TITLE 관련 상태가 남아있어도 끊음)
       titleFromGame = false;
       titleReturnState = "PAUSE";
-
-      setState("GAMEOVER"); // ✅ 무조건 GAMEOVER
+      setState("GAMEOVER");
 
       if (finalResult) {
         finalResult.textContent = `SCORE: ${score} | LEVEL: ${level} | WAVE: ${wave}`;
@@ -576,7 +618,6 @@
     window.addEventListener("keydown", (e) => {
       if (["Space","ArrowUp","ArrowDown","ArrowLeft","ArrowRight"].includes(e.code)) e.preventDefault();
 
-      // TITLE에서: 플레이 중 열었던 TITLE이면 ESC/P로 복귀
       if (state === "TITLE") {
         if (titleFromGame && (e.code === "Escape" || e.code === "KeyP")) {
           e.preventDefault();
@@ -585,7 +626,6 @@
         return;
       }
 
-      // ✅ GAMEOVER/REWARD에서는 키로 상태가 바뀌지 않게 완전 차단
       if (state === "GAMEOVER" || state === "REWARD") return;
 
       if (e.code === "KeyP" || e.code === "Escape") {
@@ -682,7 +722,7 @@
       { id:"heal_full", name:"나노 리부트", desc:"HP 완전 회복 + 최대 HP +20", apply:()=>{ player.maxHp += 20; player.hp = player.maxHp; } },
       { id:"atk_up", name:"코어 튜닝", desc:"기본 공격력 +25", apply:()=>{ player.baseAtk += 25; } },
       { id:"core_stack", name:"에테르 코어 주입", desc:"CORE 스택 +1 & 오버드라이브 10초", apply:()=>{ coreStack += 1; awakeningTimeLeft = 10; coreColor="#f0f"; } },
-      { id:"thunder_burst", name:"에테르 썬더", desc:"현재 화면 적에게 대미지 6000 (보스 제외)", apply:()=>{ enemies.forEach(e => { if(!e.isBoss) e.hp -= 6000; }); } },
+      { id:"thunder_burst", name:"에테르 썬더", desc:"현재 화면 적에게 대미지 6000", apply:()=>{ enemies.forEach(e => { e.hp -= 6000; }); } },
       { id:"shield", name:"위상 실드", desc:"3초간 무적(피격 무시)", apply:()=>{ invulnTime = Math.max(invulnTime, 3.0); } },
       { id:"maxhp_big", name:"강화 프레임", desc:"최대 HP +50 (즉시 30 회복)", apply:()=>{ player.maxHp += 50; player.hp = clamp(player.hp + 30, 1, player.maxHp); } }
     ];
