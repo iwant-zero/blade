@@ -4,12 +4,10 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
   <title>BLADE</title>
-
-  <!-- ✅ 레포 구조에 맞춘 CSS 경로 -->
   <link rel="stylesheet" href="./css.html/style.css" />
 </head>
 <body>
-  <!-- UI -->
+  <!-- HUD -->
   <div id="ui">
     <div id="stats">LV.1 에테르 기사</div>
 
@@ -28,36 +26,100 @@
 
   <div id="item-msg"></div>
 
-  <!-- ✅ 모바일/PC 공용 “일시정지” 버튼 -->
+  <!-- Mobile/PC Pause Button -->
   <button id="pause-btn" type="button" aria-label="pause">⏸</button>
 
-  <!-- Debug -->
+  <!-- Debug Overlay -->
   <div id="debug"></div>
 
-  <!-- Pause -->
-  <div id="pause-menu" aria-hidden="true">
-    <h1 class="panel-title">PAUSED</h1>
+  <!-- ===== TITLE MENU (RESUME / NEW GAME) ===== -->
+  <div id="title-menu" aria-hidden="true">
+    <div class="panel">
+      <div class="panel-title">BLADE</div>
+      <div class="panel-sub" id="title-sub">하이비지블리티 · 자동전투</div>
 
-    <div class="panel-sub">
-      P / ESC : 토글 · A/D 이동 · Space 점프
-    </div>
+      <div class="save-box" id="save-box" style="display:none;">
+        <div class="save-title">저장 데이터 발견</div>
+        <div class="save-meta" id="save-meta">-</div>
+      </div>
 
-    <div class="panel-buttons">
-      <button class="menu-btn" id="btn-resume">RESUME</button>
-      <button class="menu-btn" id="btn-restart">RESTART</button>
+      <div class="panel-buttons">
+        <button class="menu-btn" id="btn-title-resume" type="button" style="display:none;">RESUME</button>
+        <button class="menu-btn" id="btn-title-new" type="button">NEW GAME</button>
+      </div>
+
+      <div class="panel-buttons">
+        <button class="menu-btn ghost" id="btn-title-clear" type="button" style="display:none;">DELETE SAVE</button>
+      </div>
+
+      <div class="hint">
+        조작: A/D 이동 · Space 점프 · P/ESC/⏸ 일시정지
+      </div>
+      <div class="hint dim">
+        ⚠ 권장: VSCode Live Server / 로컬 서버로 실행 (파일 더블클릭(file://)은 환경에 따라 리소스 로드가 꼬일 수 있음)
+      </div>
     </div>
   </div>
 
-  <!-- Game Over -->
+  <!-- ===== PAUSE MENU ===== -->
+  <div id="pause-menu" aria-hidden="true">
+    <div class="panel">
+      <div class="panel-title">PAUSED</div>
+      <div class="panel-sub">P / ESC / ⏸ : 토글</div>
+
+      <div class="panel-buttons">
+        <button class="menu-btn" id="btn-resume" type="button">RESUME</button>
+        <button class="menu-btn" id="btn-save" type="button">SAVE</button>
+        <button class="menu-btn" id="btn-restart" type="button">NEW GAME</button>
+        <button class="menu-btn ghost" id="btn-to-title" type="button">TITLE</button>
+      </div>
+
+      <div class="hint dim" id="pause-save-hint">자동 저장: 플레이 중 8초마다</div>
+    </div>
+  </div>
+
+  <!-- ===== REWARD MENU (BOSS CLEAR) ===== -->
+  <div id="reward-menu" aria-hidden="true">
+    <div class="panel">
+      <div class="panel-title">BOSS CLEAR</div>
+      <div class="panel-sub" id="reward-sub">WAVE 1 → 2</div>
+
+      <div class="reward-grid">
+        <button class="reward-btn" id="reward-0" type="button">
+          <div class="reward-name" id="reward-name-0">-</div>
+          <div class="reward-desc" id="reward-desc-0">-</div>
+        </button>
+        <button class="reward-btn" id="reward-1" type="button">
+          <div class="reward-name" id="reward-name-1">-</div>
+          <div class="reward-desc" id="reward-desc-1">-</div>
+        </button>
+        <button class="reward-btn" id="reward-2" type="button">
+          <div class="reward-name" id="reward-name-2">-</div>
+          <div class="reward-desc" id="reward-desc-2">-</div>
+        </button>
+      </div>
+
+      <div class="hint dim">
+        보상 1개 선택 후 즉시 다음 웨이브가 시작됩니다.
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== GAME OVER ===== -->
   <div id="overlay" aria-hidden="true">
-    <h1 class="gameover-title">GAME OVER</h1>
-    <div id="final-result" class="final-result"></div>
-    <button class="menu-btn" id="btn-retry">RETRY</button>
+    <div class="panel">
+      <div class="panel-title">GAME OVER</div>
+      <div id="final-result" class="final-result">-</div>
+      <div class="panel-buttons">
+        <button class="menu-btn" id="btn-retry" type="button">NEW GAME</button>
+        <button class="menu-btn ghost" id="btn-over-title" type="button">TITLE</button>
+      </div>
+    </div>
   </div>
 
   <canvas id="gameCanvas"></canvas>
 
-  <!-- ✅ 로드 실패 원인 표시 -->
+  <!-- JS load fail / runtime error viewer -->
   <script>
     (function(){
       const debug = document.getElementById('debug');
@@ -81,7 +143,7 @@
           show(
             "game.js가 실행되지 않았습니다.\n" +
             "경로: ./js.html/game.js\n" +
-            "Blade/index.html 과 같은 레벨에 js.html 폴더가 있는지 확인하세요.\n" +
+            "Blade/index.html 과 같은 레벨에 js.html 폴더 + game.js가 있는지 확인하세요.\n" +
             "※ Live Server 권장"
           );
         }
@@ -89,7 +151,6 @@
     })();
   </script>
 
-  <!-- ✅ 레포 구조에 맞춘 JS 경로 -->
   <script src="./js.html/game.js" defer
     onerror="window.__blade_show_debug && window.__blade_show_debug('game.js 로드 실패!\\n경로: ./js.html/game.js\\n폴더/파일 이름을 확인하세요.');">
   </script>
