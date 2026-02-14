@@ -49,11 +49,12 @@
     const finalResult = document.getElementById("final-result");
     const btnRetry = document.getElementById("btn-retry");
     const btnOverTitle = document.getElementById("btn-over-title");
+    const btnOverLoad = document.getElementById("btn-over-load");
 
-    // ========= CONSTANTS / SAVE =========
+    // ========= SAVE =========
     const SAVE_KEY = "blade_save_v1";
 
-    // ========= CANVAS SIZE (HiDPI) =========
+    // ========= CANVAS (HiDPI) =========
     let W = 0, H = 0, DPR = 1;
     let floorY = 0;
 
@@ -106,19 +107,18 @@
     } catch { bgm = null; }
 
     // ========= GAME STATE =========
-    // state: "TITLE" | "PLAY" | "PAUSE" | "REWARD" | "GAMEOVER"
+    // "TITLE" | "PLAY" | "PAUSE" | "REWARD" | "GAMEOVER"
     let state = "TITLE";
 
     let score = 0;
     let level = 1;
-    let exp = 0; // 0~100
+    let exp = 0;
 
-    let wave = 1; // boss clear -> wave+1
+    let wave = 1;
     let coreStack = 0;
     let awakeningTimeLeft = 0;
     let coreColor = "#0ff";
-
-    let invulnTime = 0; // brief invincibility after rewards
+    let invulnTime = 0;
 
     const player = {
       x: 0, y: 0, w: 80, h: 110,
@@ -132,11 +132,9 @@
     let afterimages = [];
 
     const keys = {};
-
-    // reward selections
     let currentRewards = [];
 
-    // ========= UI HELPERS =========
+    // ========= UI =========
     function showOverlay(el, on) {
       if (!el) return;
       el.style.display = on ? "flex" : "none";
@@ -150,9 +148,10 @@
       showOverlay(rewardMenu, state === "REWARD");
       showOverlay(gameOverOverlay, state === "GAMEOVER");
 
-      // pause button visible in all except TITLE (원하면 TITLE에서도 표시 가능)
+      // ✅ pause 버튼은 PLAY/PAUSE에서만 보여주기 (게임오버/보상/타이틀에선 숨김)
       if (pauseBtn) {
-        pauseBtn.style.display = (state === "TITLE") ? "none" : "block";
+        const show = (state === "PLAY" || state === "PAUSE");
+        pauseBtn.style.display = show ? "block" : "none";
         pauseBtn.textContent = (state === "PAUSE") ? "▶" : "⏸";
       }
 
@@ -164,6 +163,9 @@
           bgm.pause();
         }
       }
+
+      // 저장 버튼/로드 버튼 노출 갱신
+      renderSaveInfo();
     }
 
     function showItemNotice(text) {
@@ -209,8 +211,10 @@
       try { localStorage.removeItem(SAVE_KEY); } catch {}
     }
 
+    // ✅ “죽은 상태” 저장 방지: hp <= 0 이면 저장하지 않음
     function saveGame() {
       if (state === "TITLE" || state === "GAMEOVER") return;
+      if (player.hp <= 0) return;
 
       const data = {
         v: 1,
@@ -231,7 +235,7 @@
       try {
         localStorage.setItem(SAVE_KEY, JSON.stringify(data));
         showItemNotice("SAVED");
-        renderTitleSaveInfo(); // 정보 갱신
+        renderSaveInfo();
       } catch {
         showItemNotice("SAVE FAILED");
       }
@@ -253,18 +257,16 @@
       awakeningTimeLeft = clamp(Number(c.time) || 0, 0, 999);
       coreColor = (typeof c.color === "string" && c.color) ? c.color : "#0ff";
 
-      // 필드 정리
       enemies = [];
       items = [];
       lightnings = [];
       afterimages = [];
 
-      // 플레이어 위치 초기화
       player.vx = 0; player.vy = 0; player.grounded = false; player.dir = 1;
       player.x = W * 0.5 - player.w * 0.5;
       player.y = floorY - player.h;
 
-      invulnTime = 0;
+      invulnTime = 1.2; // 로드 직후 안전
       syncHUD();
     }
 
@@ -291,18 +293,25 @@
       if (saveMeta) saveMeta.textContent = lines.join("\n");
     }
 
-    // ========= GAME FLOW =========
+    function renderGameOverLoadButton() {
+      const ok = hasSave();
+      if (btnOverLoad) btnOverLoad.style.display = ok ? "inline-block" : "none";
+    }
+
+    function renderSaveInfo() {
+      renderTitleSaveInfo();
+      renderGameOverLoadButton();
+    }
+
+    // ========= FLOW =========
+    function keysReset() { for (const k in keys) keys[k] = false; }
+
     function startNewGame() {
+      // 새게임은 “세이브 삭제” 정책 유지
       clearSave();
 
-      score = 0;
-      level = 1;
-      exp = 0;
-      wave = 1;
-
-      coreStack = 0;
-      awakeningTimeLeft = 0;
-      coreColor = "#0ff";
+      score = 0; level = 1; exp = 0; wave = 1;
+      coreStack = 0; awakeningTimeLeft = 0; coreColor = "#0ff";
       invulnTime = 0;
 
       player.maxHp = 100;
@@ -310,17 +319,13 @@
       player.baseAtk = 45;
       player.vx = 0; player.vy = 0; player.grounded = false; player.dir = 1;
 
-      enemies = [];
-      items = [];
-      lightnings = [];
-      afterimages = [];
-
+      enemies = []; items = []; lightnings = []; afterimages = [];
       player.x = W * 0.5 - player.w * 0.5;
       player.y = floorY - player.h;
 
       syncHUD();
       setState("PLAY");
-      saveGame(); // 시작 즉시 세이브 1회
+      saveGame(); // 시작 즉시 1회 저장
     }
 
     function resumeFromSave() {
@@ -331,33 +336,22 @@
     }
 
     function toTitle() {
-      // 타이틀로 갈 때는 저장은 유지 (원하는 정책이면 여기서 saveGame() 호출)
       keysReset();
       setState("TITLE");
-      renderTitleSaveInfo();
-    }
-
-    function keysReset() {
-      for (const k in keys) keys[k] = false;
+      renderSaveInfo();
     }
 
     function endGame() {
+      // ✅ 더 이상 세이브를 삭제하지 않음 (죽어도 “마지막 저장”으로 로드 가능)
       setState("GAMEOVER");
-      // 게임오버 시 저장 삭제(죽은 상태로 RESUME되는 것 방지)
-      clearSave();
-      renderTitleSaveInfo();
-
       if (finalResult) finalResult.textContent = `SCORE: ${score} | LEVEL: ${level} | WAVE: ${wave}`;
+      renderSaveInfo();
     }
 
-    // ========= INPUT / MENUS =========
+    // ========= MENUS / INPUT =========
     function togglePause() {
-      if (state === "PLAY") {
-        setState("PAUSE");
-        saveGame(); // 일시정지 시 저장
-      } else if (state === "PAUSE") {
-        setState("PLAY");
-      }
+      if (state === "PLAY") { setState("PAUSE"); saveGame(); }
+      else if (state === "PAUSE") setState("PLAY");
     }
 
     if (pauseBtn) {
@@ -372,47 +366,44 @@
 
     if (btnRetry) btnRetry.addEventListener("click", () => startNewGame());
     if (btnOverTitle) btnOverTitle.addEventListener("click", () => toTitle());
+    if (btnOverLoad) btnOverLoad.addEventListener("click", () => resumeFromSave());
 
     if (btnTitleNew) btnTitleNew.addEventListener("click", () => startNewGame());
     if (btnTitleResume) btnTitleResume.addEventListener("click", () => resumeFromSave());
-    if (btnTitleClear) btnTitleClear.addEventListener("click", () => { clearSave(); renderTitleSaveInfo(); showItemNotice("SAVE DELETED"); });
+    if (btnTitleClear) btnTitleClear.addEventListener("click", () => { clearSave(); renderSaveInfo(); showItemNotice("SAVE DELETED"); });
 
     window.addEventListener("keydown", (e) => {
       if (["Space","ArrowUp","ArrowDown","ArrowLeft","ArrowRight"].includes(e.code)) e.preventDefault();
 
-      // BGM: 첫 입력에 재생 시도
-      if (bgm && bgm.paused && (state === "PLAY" || state === "PAUSE")) bgm.play().catch(()=>{});
-
-      // TITLE에서는 게임 조작 막고 메뉴만
+      // title에서는 조작 입력 무시
       if (state === "TITLE") return;
 
       if (e.code === "KeyP" || e.code === "Escape") {
         e.preventDefault();
-        if (state === "REWARD" || state === "GAMEOVER") return; // 보상/게임오버 중엔 토글 금지
+        if (state === "REWARD" || state === "GAMEOVER") return;
         togglePause();
         return;
       }
 
       keys[e.code] = true;
+
+      if (bgm && bgm.paused && (state === "PLAY" || state === "PAUSE")) bgm.play().catch(()=>{});
     }, { passive:false });
 
     window.addEventListener("keyup", (e) => { keys[e.code] = false; });
 
-    // 탭 닫기/새로고침 전 저장
     window.addEventListener("beforeunload", () => {
       try {
         if (state === "PLAY" || state === "PAUSE" || state === "REWARD") saveGame();
       } catch {}
     });
 
-    // ========= SPAWN SYSTEM (dynamic, no setInterval) =========
+    // ========= SPAWN (dynamic) =========
     function enemySpawnMs() {
-      // wave가 오를수록 더 자주 등장 (최소 850ms)
       const ms = 2000 - (wave - 1) * 90;
       return clamp(ms, 850, 2000);
     }
     function lightningSpawnMs() {
-      // wave가 오를수록 조금 더 자주 (최소 3200ms)
       const ms = 5000 - (wave - 1) * 120;
       return clamp(ms, 3200, 5000);
     }
@@ -437,7 +428,7 @@
       }, lightningSpawnMs());
     }
 
-    // ========= ENEMIES / ITEMS =========
+    // ========= ITEMS / ENEMIES =========
     function tryDropItem(x, y) {
       if (Math.random() > 0.2) return;
       const r = Math.random();
@@ -479,10 +470,8 @@
     }
 
     function spawnEnemy() {
-      // 10레벨마다 보스 1회
       const bossAlive = enemies.some(e => e.isBoss);
       const isBossTurn = (level % 10 === 0);
-
       if (isBossTurn && !bossAlive) spawnBoss();
       else spawnMob();
     }
@@ -493,56 +482,17 @@
       }
     }
 
-    // ========= REWARD SYSTEM =========
+    // ========= REWARD =========
     const REWARD_POOL = [
-      {
-        id: "heal_full",
-        name: "나노 리부트",
-        desc: "HP 완전 회복 + 최대 HP +20",
-        apply: () => {
-          player.maxHp += 20;
-          player.hp = player.maxHp;
-        }
-      },
-      {
-        id: "atk_up",
-        name: "코어 튜닝",
-        desc: "기본 공격력 +25",
-        apply: () => { player.baseAtk += 25; }
-      },
-      {
-        id: "core_stack",
-        name: "에테르 코어 주입",
-        desc: "CORE 스택 +1 & 오버드라이브 10초",
-        apply: () => { coreStack += 1; awakeningTimeLeft = 10; coreColor = "#f0f"; }
-      },
-      {
-        id: "thunder_burst",
-        name: "에테르 썬더",
-        desc: "현재 화면의 적에게 대미지 6000 (보스 제외)",
-        apply: () => {
-          enemies.forEach(e => { if (!e.isBoss) e.hp -= 6000; });
-        }
-      },
-      {
-        id: "shield",
-        name: "위상 실드",
-        desc: "3초간 무적(피격 무시)",
-        apply: () => { invulnTime = Math.max(invulnTime, 3.0); }
-      },
-      {
-        id: "maxhp_big",
-        name: "강화 프레임",
-        desc: "최대 HP +50 (즉시 30 회복)",
-        apply: () => {
-          player.maxHp += 50;
-          player.hp = clamp(player.hp + 30, 1, player.maxHp);
-        }
-      }
+      { id:"heal_full", name:"나노 리부트", desc:"HP 완전 회복 + 최대 HP +20", apply:()=>{ player.maxHp += 20; player.hp = player.maxHp; } },
+      { id:"atk_up", name:"코어 튜닝", desc:"기본 공격력 +25", apply:()=>{ player.baseAtk += 25; } },
+      { id:"core_stack", name:"에테르 코어 주입", desc:"CORE 스택 +1 & 오버드라이브 10초", apply:()=>{ coreStack += 1; awakeningTimeLeft = 10; coreColor="#f0f"; } },
+      { id:"thunder_burst", name:"에테르 썬더", desc:"현재 화면의 적에게 대미지 6000 (보스 제외)", apply:()=>{ enemies.forEach(e => { if(!e.isBoss) e.hp -= 6000; }); } },
+      { id:"shield", name:"위상 실드", desc:"3초간 무적(피격 무시)", apply:()=>{ invulnTime = Math.max(invulnTime, 3.0); } },
+      { id:"maxhp_big", name:"강화 프레임", desc:"최대 HP +50 (즉시 30 회복)", apply:()=>{ player.maxHp += 50; player.hp = clamp(player.hp + 30, 1, player.maxHp); } }
     ];
 
     function pickRewards() {
-      // 중복 없이 3개
       const pool = REWARD_POOL.slice();
       for (let i = pool.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
@@ -553,43 +503,27 @@
 
     function openRewardMenu(nextWave) {
       currentRewards = pickRewards();
-
       if (rewardSub) rewardSub.textContent = `WAVE ${wave} → ${nextWave}`;
       for (let i = 0; i < 3; i++) {
         const r = currentRewards[i];
         if (rewardNames[i]) rewardNames[i].textContent = r.name;
         if (rewardDescs[i]) rewardDescs[i].textContent = r.desc;
       }
-
       setState("REWARD");
     }
 
     function onBossCleared() {
-      // 남은 몹 정리(보스 클리어 느낌)
-      enemies = enemies.filter(e => e.isBoss); // 혹시 남아있으면
-      enemies = []; // 보스도 죽었으니 전체 비움
-
-      // 웨이브 상승
+      enemies = [];
       const nextWave = wave + 1;
       openRewardMenu(nextWave);
-
-      // 보상 선택 후 실제 wave 증가 + 세이브는 그때
     }
 
     function applyReward(index) {
       const r = currentRewards[index];
       if (!r) return;
-
-      // 다음 웨이브 확정
       wave += 1;
-
-      // 보상 적용
       r.apply();
-
-      // 짧은 무적
       invulnTime = Math.max(invulnTime, 1.0);
-
-      // UI/상태 정리
       showItemNotice(`WAVE ${wave} START`);
       setState("PLAY");
       saveGame();
@@ -603,10 +537,9 @@
       });
     });
 
-    // ========= AUTO SAVE TIMER =========
+    // ========= AUTO SAVE =========
     setInterval(() => {
       if (state === "PLAY") {
-        // 너무 자주 저장하면 브라우저에 부담 → 8초
         try { saveGame(); } catch {}
       }
     }, 8000);
@@ -615,10 +548,8 @@
     function update(dt) {
       if (state !== "PLAY") return;
 
-      // invulnerability
       if (invulnTime > 0) invulnTime = Math.max(0, invulnTime - dt);
 
-      // overdrive time
       if (awakeningTimeLeft > 0) {
         awakeningTimeLeft -= dt;
         if (awkTimerUI) {
@@ -670,22 +601,18 @@
         });
       }
 
-      // attack check (center distance) - 보스 피 안 닳는 문제 방지
+      // attack
       const hitRangeBase = 190 + (coreStack * 10);
-
       let bossJustDied = false;
 
       enemies.forEach(en => {
-        // chase
         if (cx(en) < cx(player)) en.x += en.speed;
         else en.x -= en.speed;
 
-        // contact damage (invuln 고려)
         if (invulnTime <= 0 && aabbOverlap(player, en)) {
           player.hp -= en.isBoss ? 0.8 : 0.3;
         }
 
-        // hit
         const d = distCenter(player, en);
         const bossBonus = en.isBoss ? (en.w * 0.15) : 0;
 
@@ -698,7 +625,6 @@
         }
       });
 
-      // clear dead (점수/경험치)
       enemies = enemies.filter(en => {
         if (en.dead) {
           tryDropItem(en.x, en.y);
@@ -709,13 +635,8 @@
         return true;
       });
 
-      // boss cleared -> reward
-      if (bossJustDied) {
-        // 레벨업/기타 처리 이전에 보상창
-        onBossCleared();
-      }
+      if (bossJustDied) onBossCleared();
 
-      // level up
       if (exp >= 100) {
         level++;
         exp = 0;
@@ -726,9 +647,7 @@
       lightnings.forEach(ln => {
         ln.life--;
         if (ln.life < 15 && ln.life > 0) {
-          if (invulnTime <= 0 && player.x < ln.x + ln.w && player.x + player.w > ln.x) {
-            player.hp -= 3;
-          }
+          if (invulnTime <= 0 && player.x < ln.x + ln.w && player.x + player.w > ln.x) player.hp -= 3;
         }
       });
       lightnings = lightnings.filter(ln => ln.life > 0);
@@ -738,39 +657,26 @@
         if (Math.abs(cx(player) - (it.x + it.w / 2)) < 65 &&
             Math.abs(cy(player) - (it.y + it.h / 2)) < 100) {
 
-          if (it.type === "CORE") {
-            coreStack++;
-            awakeningTimeLeft = 10;
-            coreColor = "#f0f";
-            showItemNotice("CORE AWAKENED!");
-          } else if (it.type === "THUNDER") {
-            enemies.forEach(e => e.hp -= 4000);
-            showItemNotice("ETHER THUNDER!");
-          } else if (it.type === "HEAL") {
-            player.hp = Math.min(player.maxHp, player.hp + 60);
-            showItemNotice("RECOVERED!");
-          }
+          if (it.type === "CORE") { coreStack++; awakeningTimeLeft = 10; coreColor = "#f0f"; showItemNotice("CORE AWAKENED!"); }
+          else if (it.type === "THUNDER") { enemies.forEach(e => e.hp -= 4000); showItemNotice("ETHER THUNDER!"); }
+          else if (it.type === "HEAL") { player.hp = Math.min(player.maxHp, player.hp + 60); showItemNotice("RECOVERED!"); }
           return false;
         }
         return true;
       });
 
-      // fade
       afterimages.forEach(a => { a.opacity -= 0.07; a.life--; });
       afterimages = afterimages.filter(a => a.life > 0);
 
-      // death
       if (player.hp <= 0) endGame();
 
       syncHUD();
     }
 
     function draw() {
-      // bg
       if (img.bg.complete && img.bg.width > 0) ctx.drawImage(img.bg, 0, 0, W, H);
       else { ctx.fillStyle = "#010108"; ctx.fillRect(0, 0, W, H); }
 
-      // lightning
       lightnings.forEach(ln => {
         if (img.ln.complete && img.ln.width > 0) {
           ctx.globalAlpha = ln.life > 15 ? 0.2 : 1.0;
@@ -782,7 +688,6 @@
         }
       });
 
-      // floor
       ctx.strokeStyle = "#1a1a1a";
       ctx.lineWidth = 4;
       ctx.beginPath();
@@ -790,7 +695,6 @@
       ctx.lineTo(W, floorY);
       ctx.stroke();
 
-      // items
       items.forEach(it => {
         let itemImg = img.it_heal;
         if (it.type === "CORE") itemImg = img.it_core;
@@ -803,7 +707,6 @@
         }
       });
 
-      // afterimages (orbit)
       afterimages.forEach(a => {
         ctx.globalAlpha = a.opacity;
         ctx.fillStyle = a.color || "#0ff";
@@ -811,7 +714,6 @@
       });
       ctx.globalAlpha = 1;
 
-      // enemies + boss hp bar
       enemies.forEach(en => {
         const image = en.isBoss ? img.b : img.e;
         if (image.complete && image.width > 0) ctx.drawImage(image, en.x, en.y, en.w, en.h);
@@ -826,7 +728,6 @@
         }
       });
 
-      // player (invuln blink)
       const blink = (invulnTime > 0) ? (Math.floor(performance.now() / 80) % 2 === 0) : true;
       if (blink) {
         ctx.save();
@@ -849,10 +750,8 @@
       try {
         const dt = Math.min(0.05, Math.max(0.001, (now - last) / 1000));
         last = now;
-
         update(dt);
         draw();
-
         requestAnimationFrame(frame);
       } catch (e) {
         showDebug(`RUNTIME ERROR:\n${e.stack || e.message || String(e)}`);
@@ -865,8 +764,7 @@
     player.y = floorY - player.h;
     syncHUD();
 
-    // initial title state
-    renderTitleSaveInfo();
+    renderSaveInfo();
     setState("TITLE");
 
     // start spawners (they check state === PLAY)
