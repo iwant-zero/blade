@@ -28,14 +28,24 @@
 
   <div id="item-msg"></div>
 
+  <!-- ✅ 모바일/PC 공용 “일시정지” 버튼 -->
+  <button id="pause-btn" type="button" aria-label="pause">⏸</button>
+
   <!-- Debug -->
   <div id="debug"></div>
 
   <!-- Pause -->
   <div id="pause-menu" aria-hidden="true">
-    <h1>PAUSED</h1>
-    <button class="menu-btn" id="btn-resume">RESUME</button>
-    <button class="menu-btn" id="btn-restart">RESTART</button>
+    <h1 class="panel-title">PAUSED</h1>
+
+    <div class="panel-sub">
+      P / ESC : 토글 · A/D 이동 · Space 점프
+    </div>
+
+    <div class="panel-buttons">
+      <button class="menu-btn" id="btn-resume">RESUME</button>
+      <button class="menu-btn" id="btn-restart">RESTART</button>
+    </div>
   </div>
 
   <!-- Game Over -->
@@ -47,7 +57,7 @@
 
   <canvas id="gameCanvas"></canvas>
 
-  <!-- ✅ 로드 실패 원인 표시 (game.js 못 불러오면 바로 뜸) -->
+  <!-- ✅ 로드 실패 원인 표시 -->
   <script>
     (function(){
       const debug = document.getElementById('debug');
@@ -71,9 +81,8 @@
           show(
             "game.js가 실행되지 않았습니다.\n" +
             "경로: ./js.html/game.js\n" +
-            "확인: Blade/index.html 과 같은 레벨에 js.html 폴더가 있는지,\n" +
-            "그리고 그 안에 game.js 파일이 있는지 확인하세요.\n" +
-            "※ 가능하면 Live Server로 실행하세요."
+            "Blade/index.html 과 같은 레벨에 js.html 폴더가 있는지 확인하세요.\n" +
+            "※ Live Server 권장"
           );
         }
       }, 2000);
@@ -82,7 +91,7 @@
 
   <!-- ✅ 레포 구조에 맞춘 JS 경로 -->
   <script src="./js.html/game.js" defer
-    onerror="window.__blade_show_debug && window.__blade_show_debug('game.js 로드 실패!\\n경로: ./js.html/game.js\\n폴더/파일 이름을 정확히 확인하세요.');">
+    onerror="window.__blade_show_debug && window.__blade_show_debug('game.js 로드 실패!\\n경로: ./js.html/game.js\\n폴더/파일 이름을 확인하세요.');">
   </script>
 </body>
 </html>
