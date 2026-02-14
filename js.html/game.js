@@ -113,16 +113,13 @@
       const btnOverTitle = document.getElementById("btn-over-title");
 
       // ============================================================
-      // ✅ 1) "줌 아웃" : 월드 크기를 키워서(=보이는 공간↑) 회피 공간 확보
-      //    - 이전(960x540)보다 커짐 → 캐릭/번개가 상대적으로 작아짐
+      // "줌 아웃" : 월드 크기를 키워서 회피 공간 확보
       // ============================================================
       const WORLD_W = 1280;
       const WORLD_H = 720;
       const floorY = WORLD_H - 120;
 
-      // ============================================================
-      // ✅ Render scaling (캔버스 실제 픽셀 기준: PC/모바일 안정)
-      // ============================================================
+      // ===== Render scaling (캔버스 실제 픽셀 기준) =====
       let scalePx = 1;
       let offPxX = 0;
       let offPxY = 0;
@@ -217,9 +214,6 @@
       let coreStack = 0, awakeningTimeLeft = 0, coreColor = "#0ff";
       let invulnTime = 0;
 
-      // ============================================================
-      // ✅ 월드가 커졌으니 이동속도도 살짝 올려서(회피 체감↑)
-      // ============================================================
       const PLAYER_SPEED = 12;
       const JUMP_POWER = 19;
 
@@ -233,7 +227,7 @@
       const keys = {};
       let currentRewards = [];
 
-      // ===== Touch =====
+      // ===== Touch (중복 바인딩 방지: 여기서만 1번 바인딩) =====
       function bindHoldButton(el, keyCode){
         if(!el) return;
         const down = (e)=>{ e.preventDefault(); keys[keyCode]=true; };
@@ -613,14 +607,14 @@
       }
 
       // ============================================================
-      // ✅ 2) 번개를 "반드시 피할 구멍이 생기게" 생성
-      //    - 레인 기반 + 안전 레인 1개 보장
-      //    - 경고(텔레그래프) → 실제 낙뢰(피해) 2단계
+      // 번개: 레인 기반 + 안전 레인 1개 보장 + 경고 → 낙뢰
       // ============================================================
-      const LN_LANES = 12;          // 레인 수 (많을수록 더 촘촘하게 나뉨)
-      const LN_WARN_SEC = 0.75;     // 경고 시간(이 동안 피해 없음)
-      const LN_STRIKE_SEC = 0.28;   // 실제 피해 시간
-      const LN_DPS = 28;            // 초당 피해량(너무 빡세면 22~24로 내리면 됨)
+      const LN_LANES = 12;
+      const LN_WARN_SEC = 0.75;
+
+      // ✅ (2) 번개 데미지 2배로 강하게
+      const LN_STRIKE_SEC = 0.28;
+      const LN_DPS = 56; // (기존 28) -> 2배
 
       function shuffle(arr){
         for(let i=arr.length-1;i>0;i--){
@@ -633,17 +627,16 @@
       function spawnLightnings(){
         const laneW = WORLD_W / LN_LANES;
 
-        // 플레이어가 있는 레인 근처를 "안전 레인 후보"로 잡아주면 회피가 쉬움
         const pLane = clamp(Math.floor((player.x + player.w*0.5) / laneW), 0, LN_LANES-1);
         const offset = (Math.random() < 0.5 ? -1 : 1) * (Math.random() < 0.6 ? 1 : 2);
         const safeLane = clamp(pLane + offset, 0, LN_LANES-1);
 
-        // 웨이브가 올라가도 “덮어버리는” 상황이 안 나오게 상한을 둠
-        const strikeCount = clamp(3 + Math.floor(wave / 3), 3, 6);
+        // ✅ (1) 번개는 항상 6개 떨어지게 고정
+        const strikeCount = 6;
 
         const candidates = [];
         for(let i=0;i<LN_LANES;i++){
-          if(i === safeLane) continue; // ✅ 안전 레인 보장
+          if(i === safeLane) continue;
           candidates.push(i);
         }
         shuffle(candidates);
@@ -659,7 +652,7 @@
             y: -220,
             w,
             h: WORLD_H + 240,
-            phase: "warn",   // warn -> strike
+            phase: "warn",
             t: LN_WARN_SEC
           });
         }
@@ -707,7 +700,6 @@
         r.apply();
         invulnTime = Math.max(invulnTime, 1.0);
 
-        // 보상 선택 완료 시점에만 자동 저장
         saveToSlot(getActiveSlot(), "CHECKPOINT");
 
         showItemNotice(`WAVE ${wave} START`);
@@ -807,9 +799,7 @@
           player.baseAtk += 15;
         }
 
-        // ==============================
-        // ✅ Lightning (텔레그래프 → 스트라이크)
-        // ==============================
+        // Lightning (warn -> strike)
         lightnings.forEach(ln=>{
           ln.t -= dt;
 
@@ -819,7 +809,6 @@
               ln.t = LN_STRIKE_SEC;
             }
           } else {
-            // strike phase: DPS 방식으로 피해 (프레임레이트 영향 최소화)
             if(invulnTime<=0 && player.x < ln.x+ln.w && player.x+player.w > ln.x){
               player.hp -= LN_DPS * dt;
             }
@@ -849,18 +838,16 @@
       }
 
       function draw(){
-        // 1) 전체 화면(캔버스 픽셀) 지우기
         ctx.setTransform(1,0,0,1,0,0);
         ctx.fillStyle = "#000";
         ctx.fillRect(0,0,canvas.width,canvas.height);
 
-        // 2) 월드 렌더(픽셀 기준 스케일 + 중앙 정렬)
         ctx.setTransform(scalePx,0,0,scalePx, offPxX, offPxY);
 
         if(img.bg.complete && img.bg.width>0) ctx.drawImage(img.bg, 0,0, WORLD_W, WORLD_H);
         else { ctx.fillStyle="#010108"; ctx.fillRect(0,0,WORLD_W,WORLD_H); }
 
-        // lightning (warn/strike 시각 구분)
+        // lightning (warn/strike)
         lightnings.forEach(ln=>{
           const isWarn = ln.phase === "warn";
           const alpha = isWarn ? 0.18 : 1.0;
@@ -876,7 +863,6 @@
             ctx.globalAlpha = 1.0;
           }
 
-          // 바닥 경고 라인(더 잘 보이게)
           if(isWarn){
             ctx.globalAlpha = 0.35;
             ctx.fillStyle = "#ffffff";
@@ -959,20 +945,6 @@
       // ===== Init =====
       resize();
       syncHUD();
-
-      // Touch 버튼 홀드
-      function bindHold(el, key){
-        if(!el) return;
-        const down = (e)=>{ e.preventDefault(); keys[key]=true; };
-        const up = (e)=>{ e.preventDefault(); keys[key]=false; };
-        el.addEventListener("pointerdown", down, {passive:false});
-        el.addEventListener("pointerup", up, {passive:false});
-        el.addEventListener("pointercancel", up, {passive:false});
-        el.addEventListener("pointerleave", up, {passive:false});
-      }
-      bindHold(tLeft, "KeyA");
-      bindHold(tRight, "KeyD");
-      bindHold(tJump, "Space");
 
       setActiveSlot(getActiveSlot());
       renderAllMenus();
