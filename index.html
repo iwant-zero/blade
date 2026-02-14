@@ -5,17 +5,38 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
   <title>BLADE: HIGH-VISIBILITY</title>
 
-  <!-- ✅ 최소 안전 CSS: style.css가 안 불러와져도 UI/DEBUG가 보이게 -->
+  <!-- ✅ “CSS가 안 먹어도” 화면이 떠야 하므로 최소 필수 CSS를 index에 내장 -->
   <style>
     html,body{width:100%;height:100%;margin:0;background:#000;overflow:hidden;font-family:Arial Black,sans-serif;}
     canvas{display:block;width:100vw;height:100vh;}
-    #ui{position:absolute;top:20px;left:20px;z-index:10;background:rgba(255,255,255,.35);padding:12px;border-radius:10px;color:#111}
-    #debug{position:absolute;right:12px;top:12px;z-index:999;display:none;max-width:min(520px,92vw);
-      background:rgba(0,0,0,.7);color:#fff;padding:10px 12px;border-radius:10px;white-space:pre-wrap;
-      font:12px/1.35 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;}
+
+    #ui{position:absolute;top:20px;left:20px;color:#1a1a1a;pointer-events:none;z-index:10;
+      background:rgba(255,255,255,.4);padding:15px;border-radius:10px;}
+    #stats{font-size:24px;font-weight:900;margin-bottom:5px;}
+    #score{font-size:26px;font-weight:900;margin-top:10px;color:#003366;}
+    #awk-timer{color:#660066;font-size:22px;font-weight:900;}
+    .bar-container{width:300px;height:18px;background:rgba(0,0,0,.3);border:2px solid #1a1a1a;margin:5px 0;}
+    .bar-container.exp{height:8px;}
+    #hp-fill{width:100%;height:100%;background:#cc0033;}
+    #exp-fill{width:0%;height:100%;background:#008822;}
+
+    /* ✅ 제일 중요: CSS가 안 먹어도 “초기엔 무조건 숨김” */
+    #pause-menu,#overlay{display:none;position:absolute;inset:0;background:rgba(0,0,0,.85);
+      flex-direction:column;align-items:center;justify-content:center;color:#fff;z-index:100;}
+
+    .menu-btn{padding:15px 40px;background:#1a1a1a;border:2px solid #fff;font-weight:bold;cursor:pointer;
+      font-size:20px;margin:10px;color:#fff;}
+
+    #item-msg{position:absolute;top:25%;left:50%;transform:translateX(-50%);
+      font-size:45px;font-weight:900;text-align:center;pointer-events:none;z-index:50;display:none;color:#222;
+      text-shadow:2px 2px 10px rgba(255,255,255,.8);}
+
+    #debug{position:absolute;right:12px;top:12px;max-width:min(520px,92vw);background:rgba(0,0,0,.7);
+      color:#fff;padding:10px 12px;border-radius:10px;font:12px/1.35 ui-monospace,Menlo,Consolas,monospace;
+      white-space:pre-wrap;z-index:999;display:none;}
   </style>
 
-  <!-- ✅ 너 레포 구조 CSS 경로 -->
+  <!-- ✅ 외부 CSS도 계속 사용 (있으면 이것이 덮어씀) -->
   <link rel="stylesheet" href="./css.html/style.css" />
 </head>
 <body>
@@ -30,22 +51,45 @@
   <div id="item-msg"></div>
   <div id="debug"></div>
 
-  <div id="pause-menu">
+  <!-- ✅ 여기에도 “강제 숨김” (CSS 미적용 대비) -->
+  <div id="pause-menu" style="display:none;">
     <h1>PAUSED</h1>
     <button class="menu-btn" id="btn-resume">RESUME</button>
     <button class="menu-btn" id="btn-restart">RESTART</button>
   </div>
 
-  <div id="overlay">
-    <h1 class="gameover-title">GAME OVER</h1>
-    <div id="final-result" class="final-result"></div>
+  <div id="overlay" style="display:none;">
+    <h1 style="font-size:60px;margin:0 0 10px;">GAME OVER</h1>
+    <div id="final-result" style="font-size:30px;margin-bottom:20px;"></div>
     <button class="menu-btn" id="btn-retry">RETRY</button>
   </div>
 
   <canvas id="gameCanvas"></canvas>
 
-  <!-- ✅ 로드 실패하면 바로 Debug에 표시 -->
+  <!-- ✅ 로드 실패 시 원인 표시 -->
   <script>
     function __showDebug(msg){
       const d=document.getElementById('debug');
-      if(
+      if(!d) return;
+      d.style.display='block';
+      d.textContent=msg;
+    }
+    window.addEventListener('error', (e)=>{
+      __showDebug(`JS ERROR: ${e.message}\n${e.filename}:${e.lineno}:${e.colno}`);
+    });
+    window.addEventListener('unhandledrejection', (e)=>{
+      const r = (e && e.reason) ? (e.reason.stack || e.reason.message || String(e.reason)) : 'unknown';
+      __showDebug(`PROMISE ERROR:\n${r}`);
+    });
+    setTimeout(()=>{
+      if(!window.__BLADE_BOOTED){
+        __showDebug("game.js가 실행되지 않았습니다.\n경로: ./js.html/game.js\n※ js.html은 ‘폴더’여야 합니다(파일 아님).");
+      }
+    }, 2000);
+  </script>
+
+  <script src="./js.html/game.js" defer
+    onerror="__showDebug('game.js 로드 실패!\\n경로: ./js.html/game.js\\n폴더/파일 이름을 확인하세요.')">
+  </script>
+</body>
+</html>
